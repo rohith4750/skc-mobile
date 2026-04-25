@@ -12,6 +12,8 @@ import {
   Alert,
   Linking,
 } from 'react-native';
+import * as Location from 'expo-location';
+import Constants from 'expo-constants';
 import {
   MapPin,
   Truck,
@@ -88,6 +90,26 @@ const DeliveryScreen = ({ navigation }: any) => {
   const [isTracking, setIsTracking] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [showDriverModal, setShowDriverModal] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      let loc = await Location.getCurrentPositionAsync({});
+      setCurrentLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+    })();
+  }, []);
+
+  const handleOpenNavigation = (order: any) => {
+    if (!order.address) {
+      Alert.alert('No Address', 'This order does not have a delivery address.');
+      return;
+    }
+    const encoded = encodeURIComponent(order.address);
+    const url = `https://maps.google.com/?q=${encoded}`;
+    Linking.openURL(url);
+  };
 
   // Filter for transport workforce
   const transportDrivers = React.useMemo(() => {
@@ -182,6 +204,43 @@ const DeliveryScreen = ({ navigation }: any) => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Navigation Map Card */}
+      {isTracking && currentLocation && (
+        <View style={styles.mapCard}>
+          <View style={styles.mapCardHeader}>
+            <View style={styles.liveIndicator}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE SESSION ACTIVE</Text>
+            </View>
+            <Text style={styles.coordText}>
+              {currentLocation.lat.toFixed(5)}, {currentLocation.lng.toFixed(5)}
+            </Text>
+          </View>
+          {deliveryOrders.slice(0, 3).map(order => (
+            <TouchableOpacity
+              key={order.id}
+              style={styles.navItem}
+              onPress={() => handleOpenNavigation(order)}
+            >
+              <View style={styles.navIconBox}>
+                <Navigation size={16} color={Colors.primary} />
+              </View>
+              <View style={styles.navInfo}>
+                <Text style={styles.navCustomer}>{order.customer?.name}</Text>
+                <Text style={styles.navAddress} numberOfLines={1}>{order.address || 'No address'}</Text>
+              </View>
+              <Text style={styles.navOpenText}>Open ›</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      {!isTracking && (
+        <View style={styles.mapOfflineCard}>
+          <Navigation size={32} color={Colors.textTertiary} />
+          <Text style={styles.mapOfflineText}>Start tracking to see live navigation</Text>
+        </View>
+      )}
 
       {/* Select Driver Modal */}
       <Modal visible={showDriverModal} animationType="slide" transparent={true}>

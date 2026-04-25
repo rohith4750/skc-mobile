@@ -53,8 +53,9 @@ class TrackingService {
     }
 
     // Detect if running inside Expo Go — background location NOT supported there.
-    // Constants.executionEnvironment is 'storeClient' in Expo Go, 'standalone' in built APK.
-    const isExpoGo = Constants.executionEnvironment === 'storeClient';
+    // Use appOwnership ('expo') as it's the most reliable check across SDK versions.
+    const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
+    console.log('[Tracking] isExpoGo:', isExpoGo, '| appOwnership:', Constants.appOwnership, '| env:', Constants.executionEnvironment);
 
     // Try background permission — only in built APK, skip entirely in Expo Go.
     let hasBackground = false;
