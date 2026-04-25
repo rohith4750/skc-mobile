@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import api from './api';
 
 const LOCATION_TASK_NAME = 'BACKGROUND_LOCATION_TASK';
@@ -51,16 +52,22 @@ class TrackingService {
       throw new Error('Foreground location permission is required to start tracking.');
     }
 
-    // Try background permission — Expo Go will reject this, APK will accept it.
-    // Either way we proceed with at least foreground tracking.
+    // Detect if running inside Expo Go — background location NOT supported there.
+    // Constants.executionEnvironment is 'storeClient' in Expo Go, 'standalone' in built APK.
+    const isExpoGo = Constants.executionEnvironment === 'storeClient';
+
+    // Try background permission — only in built APK, skip entirely in Expo Go.
     let hasBackground = false;
-    try {
-      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-      hasBackground = bgStatus === 'granted';
-    } catch (e) {
-      // Expected in Expo Go — background location requires a custom build.
-      console.log('[Tracking] Background permission not supported in Expo Go, using foreground only.');
-      hasBackground = false;
+    if (!isExpoGo) {
+      try {
+        const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+        hasBackground = bgStatus === 'granted';
+      } catch (e) {
+        console.log('[Tracking] Background permission error, using foreground only.'); 
+        hasBackground = false;
+      }
+    } else {
+      console.log('[Tracking] Expo Go detected — skipping background permission, foreground only.');
     }
 
     // 1. Start Background Tracking (APK only)
