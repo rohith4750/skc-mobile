@@ -1,12 +1,16 @@
 {
   "expo": {
-    "name": "skc-mobile",
-    "slug": "skc-mobile",
+    "name": "SKC Caterers",
+    "slug": "skc",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./src/assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
+    "extra": {
+      "eas": {
+        "projectId": "9ce393ef-d771-4c9c-8fd0-bc2add5dc81b"
+      }
+    },
     "splash": {
       "image": "./src/assets/splash-icon.png",
       "resizeMode": "contain",
@@ -20,6 +24,8 @@
         "foregroundImage": "./src/assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.skccaterers.mobile",
+      "versionCode": 1,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
