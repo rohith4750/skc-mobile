@@ -25,6 +25,16 @@
     },
     "web": {
       "favicon": "./src/assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow SKC Caterers to use your location to track deliveries in the background.",
+          "locationAlwaysPermission": "Allow SKC Caterers to use your location to track deliveries in the background.",
+          "locationWhenInUsePermission": "Allow SKC Caterers to use your location to track your deliveries."
+        }
+      ]
+    ]
   }
 }

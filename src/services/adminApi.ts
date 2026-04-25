@@ -23,6 +23,14 @@ export const adminApi = apiSlice.injectEndpoints({
       providesTags: ['Supervisor'],
       transformResponse: (response: any) => response.data || response,
     }),
+    getWorkforce: builder.query<any[], void>({
+      query: () => '/workforce',
+      providesTags: ['Workforce' as any],
+      transformResponse: (response: any) => {
+        // The API returns { workforce: [...] }
+        return response.workforce || response.data || response || [];
+      },
+    }),
     deleteExpense: builder.mutation<{ success: boolean }, string>({
       query: (id) => ({
         url: `/expenses/${id}`,
@@ -45,6 +53,7 @@ export const {
   useGetExpensesQuery,
   useGetMaterialsQuery,
   useGetSupervisorsQuery,
+  useGetWorkforceQuery,
   useDeleteExpenseMutation,
   useDeleteSupervisorMutation,
 } = adminApi;

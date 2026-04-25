@@ -58,6 +58,9 @@ const MoreStack = () => (
 // --- Main Navigation ---
 
 const MainTabs = () => {
+  const { user } = useAuth();
+  const isAdmin = ['admin', 'superadmin'].includes(user?.role?.toLowerCase() || '');
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -93,7 +96,9 @@ const MainTabs = () => {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Orders" component={OrdersStack} />
-      <Tab.Screen name="Bills" component={BillsScreen} />
+      {isAdmin && (
+        <Tab.Screen name="Bills" component={BillsScreen} />
+      )}
       <Tab.Screen name="Delivery" component={DeliveryScreen} />
       <Tab.Screen 
         name="MoreStack" 

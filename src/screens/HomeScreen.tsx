@@ -67,6 +67,7 @@ const QuickAction = ({ title, icon: Icon, color, onPress }: any) => (
 
 const HomeScreen = ({ navigation }: any) => {
   const { user } = useAuth();
+  const isAdmin = ['admin', 'superadmin'].includes(user?.role?.toLowerCase() || '');
 
   // High-performance single dashboard call
   const { 
@@ -157,9 +158,10 @@ const HomeScreen = ({ navigation }: any) => {
         >
           <View style={styles.heroTop}>
             <View>
-              <Text style={styles.heroLabel}>Today's Sales</Text>
+              <Text style={styles.heroLabel}>{isAdmin ? "Today's Sales" : "Active Delivery Status"}</Text>
               <Text style={styles.heroValue}>
-                {isLoading ? '...' : `₹${Number(stats?.todayTotalAmount || 0).toLocaleString('en-IN')}`}
+                {isAdmin ? (isLoading ? '...' : `₹${Number(stats?.todayTotalAmount || 0).toLocaleString('en-IN')}`)
+                         : (isLoading ? '...' : 'Track Logistics')}
               </Text>
             </View>
             <View style={styles.trendBadge}>
@@ -177,15 +179,24 @@ const HomeScreen = ({ navigation }: any) => {
               <Text style={styles.heroStatText} numberOfLines={1}>{isLoading ? '...' : stats?.todayOrders}</Text>
             </View>
             <View style={styles.heroStatItem}>
-              <Wallet size={12} color={Colors.white} style={{ opacity: 0.7 }} />
-              <Text style={styles.heroStatLabel}>Paid</Text>
-              <Text style={styles.heroStatText} numberOfLines={1}>₹{isLoading ? '...' : Number(stats?.todayRevenue || 0).toLocaleString('en-IN')}</Text>
+              <ShoppingBag size={12} color={Colors.white} style={{ opacity: 0.7 }} />
+              <Text style={styles.heroStatLabel}>{isAdmin ? "Orders" : "Assigned"}</Text>
+              <Text style={styles.heroStatText} numberOfLines={1}>{isLoading ? '...' : stats?.todayOrders}</Text>
             </View>
-            <View style={styles.heroStatItem}>
-              <Clock size={12} color={Colors.white} style={{ opacity: 0.7 }} />
-              <Text style={styles.heroStatLabel}>Pending</Text>
-              <Text style={styles.heroStatText} numberOfLines={1}>₹{isLoading ? '...' : Number(stats?.todayPendingAmount || 0).toLocaleString('en-IN')}</Text>
-            </View>
+            {isAdmin && (
+              <>
+                <View style={styles.heroStatItem}>
+                  <Wallet size={12} color={Colors.white} style={{ opacity: 0.7 }} />
+                  <Text style={styles.heroStatLabel}>Paid</Text>
+                  <Text style={styles.heroStatText} numberOfLines={1}>₹{isLoading ? '...' : Number(stats?.todayRevenue || 0).toLocaleString('en-IN')}</Text>
+                </View>
+                <View style={styles.heroStatItem}>
+                  <Clock size={12} color={Colors.white} style={{ opacity: 0.7 }} />
+                  <Text style={styles.heroStatLabel}>Pending</Text>
+                  <Text style={styles.heroStatText} numberOfLines={1}>₹{isLoading ? '...' : Number(stats?.todayPendingAmount || 0).toLocaleString('en-IN')}</Text>
+                </View>
+              </>
+            )}
           </View>
         </LinearGradient>
 
@@ -207,13 +218,22 @@ const HomeScreen = ({ navigation }: any) => {
             isLoading={isLoading}
           />
           <StatCard
-            title="Outstanding"
-            value={`₹${((stats?.outstanding || 0) / 1000).toFixed(1)}k`}
-            icon={Wallet}
-            color={Colors.error}
-            subValue="Across all bills"
+            title="Stock"
+            value={stats?.stock?.toString() || '0'}
+            icon={ShoppingBag}
+            color={Colors.success}
             isLoading={isLoading}
           />
+          {isAdmin && (
+            <StatCard
+              title="Outstanding"
+              value={`₹${((stats?.outstanding || 0) / 1000).toFixed(1)}k`}
+              icon={Wallet}
+              color={Colors.error}
+              subValue="Across all bills"
+              isLoading={isLoading}
+            />
+          )}
           <StatCard
             title="Active Operations"
             value={stats?.activeOrders?.toString() || '0'}
@@ -234,17 +254,27 @@ const HomeScreen = ({ navigation }: any) => {
             onPress={() => navigation.navigate('Orders', { screen: 'NewOrder' })}
           />
           <QuickAction
-            title="Create Bill"
-            icon={ArrowUpRight}
-            color={Colors.info}
-            onPress={() => navigation.navigate('Bills')}
+            title="New Order"
+            icon={ShoppingBag}
+            color={Colors.primary}
+            onPress={() => navigation.navigate('Orders', { screen: 'NewOrder' })}
           />
-          <QuickAction
-            title="Add Expense"
-            icon={TrendingUp}
-            color={Colors.error}
-            onPress={() => navigation.navigate('MoreStack', { screen: 'Expenses' })}
-          />
+          {isAdmin && (
+            <QuickAction
+              title="Create Bill"
+              icon={ArrowUpRight}
+              color={Colors.info}
+              onPress={() => navigation.navigate('Bills')}
+            />
+          )}
+          {isAdmin && (
+            <QuickAction
+              title="Add Expense"
+              icon={TrendingUp}
+              color={Colors.error}
+              onPress={() => navigation.navigate('MoreStack', { screen: 'Expenses' })}
+            />
+          )}
           <QuickAction
             title="Menu"
             icon={Users}

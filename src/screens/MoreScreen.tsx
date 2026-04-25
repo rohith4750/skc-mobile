@@ -52,14 +52,15 @@ const MenuSection = ({ title, items }: any) => (
 
 const MoreScreen = ({ navigation }: any) => {
   const { signOut, user } = useAuth();
+  const isAdmin = ['admin', 'superadmin'].includes(user?.role?.toLowerCase() || '');
 
   const businessModules = [
-    { id: 'Customers', label: 'Customers', icon: Users, color: Colors.info, onPress: () => navigation.navigate('MoreStack', { screen: 'Customers' }) },
-    { id: 'Stock', label: 'Menu & Stock', icon: ShoppingBag, color: Colors.success, onPress: () => navigation.navigate('MoreStack', { screen: 'Stock' }) },
-    { id: 'Materials', label: 'Inventory', icon: Package, color: Colors.warning, onPress: () => navigation.navigate('MoreStack', { screen: 'Materials' }) },
-    { id: 'Expenses', label: 'Expenses', icon: CreditCard, color: Colors.error, onPress: () => navigation.navigate('MoreStack', { screen: 'Expenses' }) },
-    { id: 'Supervisors', label: 'Workforce', icon: UserCheck, color: Colors.secondary, onPress: () => navigation.navigate('MoreStack', { screen: 'Supervisors' }) },
-  ];
+    { id: 'Customers', label: 'Customers', icon: Users, color: Colors.info, onPress: () => navigation.navigate('MoreStack', { screen: 'Customers' }), adminOnly: true },
+    { id: 'Stock', label: 'Menu & Stock', icon: ShoppingBag, color: Colors.success, onPress: () => navigation.navigate('MoreStack', { screen: 'Stock' }), adminOnly: true },
+    { id: 'Materials', label: 'Inventory', icon: Package, color: Colors.warning, onPress: () => navigation.navigate('MoreStack', { screen: 'Materials' }), adminOnly: true },
+    { id: 'Expenses', label: 'Expenses', icon: CreditCard, color: Colors.error, onPress: () => navigation.navigate('MoreStack', { screen: 'Expenses' }), adminOnly: true },
+    { id: 'Supervisors', label: 'Workforce', icon: UserCheck, color: Colors.secondary, onPress: () => navigation.navigate('MoreStack', { screen: 'Supervisors' }), adminOnly: true },
+  ].filter(module => !module.adminOnly || isAdmin);
 
   const appSettings = [
     { id: 'Delivery', label: 'Delivery Settings', icon: Truck, color: Colors.primary, onPress: () => {} },
@@ -93,7 +94,9 @@ const MoreScreen = ({ navigation }: any) => {
           </View>
         </View>
 
-        <MenuSection title="Business Modules" items={businessModules} />
+        {businessModules.length > 0 && (
+          <MenuSection title="Business Modules" items={businessModules} />
+        )}
         <MenuSection title="System & App" items={appSettings} />
 
         <TouchableOpacity 

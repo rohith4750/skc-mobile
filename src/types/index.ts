@@ -36,6 +36,7 @@ export interface Order {
   status: OrderStatus;
   deliveryDate?: string;
   address?: string;
+  location?: { lat: number; lng: number };
   createdAt?: string;
   updatedAt?: string;
 }
