@@ -48,29 +48,41 @@ class TrackingService {
 
     const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
     if (fgStatus !== 'granted') {
-      throw new Error('Foreground location permission is required');
+      throw new Error('Foreground location permission is required to start tracking.');
     }
 
-    const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-    // We can still proceed with foreground-only if background is denied
-    const hasBackground = bgStatus === 'granted';
+    // Try background permission — Expo Go will reject this, APK will accept it.
+    // Either way we proceed with at least foreground tracking.
+    let hasBackground = false;
+    try {
+      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+      hasBackground = bgStatus === 'granted';
+    } catch (e) {
+      // Expected in Expo Go — background location requires a custom build.
+      console.log('[Tracking] Background permission not supported in Expo Go, using foreground only.');
+      hasBackground = false;
+    }
 
-    // 1. Start Background Tracking (if allowed)
+    // 1. Start Background Tracking (APK only)
     if (hasBackground) {
-      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 10000,
-        distanceInterval: 10, // 10 meters
-        showsBackgroundLocationIndicator: true,
-        foregroundService: {
-          notificationTitle: 'SKC Caterers Tracking',
-          notificationBody: 'Delivering orders...',
-          notificationColor: '#FF6B00',
-        },
-      });
+      try {
+        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 10000,
+          distanceInterval: 10, // 10 meters
+          showsBackgroundLocationIndicator: true,
+          foregroundService: {
+            notificationTitle: 'SKC Caterers Tracking',
+            notificationBody: 'Delivering orders...',
+            notificationColor: '#FF6B00',
+          },
+        });
+      } catch (e) {
+        console.log('[Tracking] Could not start background task:', e);
+      }
     }
 
-    // 2. Start Foreground Watch (for real-time UI updates)
+    // 2. Start Foreground Watch (always works — Expo Go + APK)
     this.isForegroundWatchActive = true;
     this.watchSubscription = await Location.watchPositionAsync(
       {
