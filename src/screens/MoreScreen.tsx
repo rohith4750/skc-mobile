@@ -6,7 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  Image
 } from 'react-native';
+const LOGO = require('../assets/icon.png');
 import { 
   Users, 
   ShoppingBag, 
@@ -25,6 +27,7 @@ import {
 import { Colors, Shadows } from '../theme/colors';
 import Constants from 'expo-constants';
 import { useAuth } from '../services/AuthContext';
+import { hasPermission, Permissions } from '../utils/rbac';
 
 const MenuSection = ({ title, items }: any) => (
   <View style={styles.section}>
@@ -55,12 +58,16 @@ const MoreScreen = ({ navigation }: any) => {
   const isAdmin = ['admin', 'superadmin'].includes(user?.role?.toLowerCase() || '');
 
   const businessModules = [
-    { id: 'Customers', label: 'Customers', icon: Users, color: Colors.info, onPress: () => navigation.navigate('MoreStack', { screen: 'Customers' }), adminOnly: true },
-    { id: 'Stock', label: 'Menu & Stock', icon: ShoppingBag, color: Colors.success, onPress: () => navigation.navigate('MoreStack', { screen: 'Stock' }), adminOnly: true },
-    { id: 'Materials', label: 'Inventory', icon: Package, color: Colors.warning, onPress: () => navigation.navigate('MoreStack', { screen: 'Materials' }), adminOnly: true },
-    { id: 'Expenses', label: 'Expenses', icon: CreditCard, color: Colors.error, onPress: () => navigation.navigate('MoreStack', { screen: 'Expenses' }), adminOnly: true },
-    { id: 'Supervisors', label: 'Workforce', icon: UserCheck, color: Colors.secondary, onPress: () => navigation.navigate('MoreStack', { screen: 'Supervisors' }), adminOnly: true },
-  ].filter(module => !module.adminOnly || isAdmin);
+    { id: 'Customers', label: 'Customers', icon: Users, color: Colors.info, onPress: () => navigation.navigate('MoreStack', { screen: 'Customers' }), permission: Permissions.MANAGE_CUSTOMERS },
+    { id: 'Stock', label: 'Menu & Stock', icon: ShoppingBag, color: Colors.success, onPress: () => navigation.navigate('MoreStack', { screen: 'Stock' }), permission: Permissions.MANAGE_MENU_STOCK },
+    { id: 'Materials', label: 'Inventory', icon: Package, color: Colors.warning, onPress: () => navigation.navigate('MoreStack', { screen: 'Materials' }), permission: Permissions.MANAGE_INVENTORY },
+    { id: 'Expenses', label: 'Expenses', icon: CreditCard, color: Colors.error, onPress: () => navigation.navigate('MoreStack', { screen: 'Expenses' }), permission: Permissions.MANAGE_EXPENSES },
+    { id: 'Supervisors', label: 'Workforce', icon: UserCheck, color: Colors.secondary, onPress: () => navigation.navigate('MoreStack', { screen: 'Supervisors' }), permission: Permissions.MANAGE_WORKFORCE },
+  ].filter(module => {
+    const hasPerm = hasPermission(user?.role, module.permission);
+    console.log(`🛡️ Module: ${module.label} | Role: ${user?.role} | Allowed: ${hasPerm}`);
+    return hasPerm;
+  });
 
   const appSettings = [
     { id: 'Delivery', label: 'Delivery Settings', icon: Truck, color: Colors.primary, onPress: () => {} },
@@ -80,6 +87,9 @@ const MoreScreen = ({ navigation }: any) => {
           >
             <ArrowLeft size={24} color={Colors.text} />
           </TouchableOpacity>
+          <View style={styles.logoContainer}>
+            <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
+          </View>
           <Text style={styles.title}>More</Text>
         </View>
 
@@ -140,6 +150,21 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: Colors.text,
+    marginLeft: 15,
+  },
+  logoContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.small,
+    padding: 4,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
   },
   profileCard: {
     backgroundColor: Colors.surface,

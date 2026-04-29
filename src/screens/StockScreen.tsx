@@ -7,19 +7,25 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   Switch,
   TextInput,
   ScrollView,
+  Image,
+  Linking
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+const LOGO = require('../assets/icon.png');
 import * as Lucide from 'lucide-react-native';
 import { Colors, Shadows } from '../theme/colors';
-import { useGetStockQuery, useUpdateStockItemMutation } from '../services/stockApi';
-import { StockItem } from '../services/stockApi';
+import { useToast } from '../components/Toast';
+import { useGetMenuQuery, useUpdateMenuItemMutation } from '../services/menuApi';
+import { exportMenuToPDF } from '../utils/pdfGenerator';
+import { MenuItem as StockItem } from '../services/menuApi';
 
 const CATEGORIES = ['ALL', 'LUNCH', 'SNACKS', 'BREAKFAST', 'RETAIL'];
 
 const StockScreen = ({ navigation }: any) => {
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('ALL');
 
@@ -29,11 +35,11 @@ const StockScreen = ({ navigation }: any) => {
     isLoading, 
     isFetching, 
     refetch 
-  } = useGetStockQuery(undefined, {
+  } = useGetMenuQuery(undefined, {
     refetchOnMountOrArgChange: true
   });
 
-  const [updateStockItem] = useUpdateStockItemMutation();
+  const [updateStockItem] = useUpdateMenuItemMutation();
 
   const onRefresh = useCallback(() => {
     refetch();
@@ -49,7 +55,7 @@ const StockScreen = ({ navigation }: any) => {
 
   const handleToggleStatus = useCallback(async (id: string, currentStatus: boolean) => {
     try {
-      await updateStockItem({ id, isAvailable: !currentStatus }).unwrap();
+      await updateStockItem({ id, isActive: !currentStatus }).unwrap();
     } catch (error) {
       console.error('Error toggling status:', error);
     }
@@ -57,10 +63,12 @@ const StockScreen = ({ navigation }: any) => {
 
   const filteredMenu = useMemo(() => {
     return stock.filter(item => {
-      const matchesSearch = item.name?.toLowerCase().includes(searchQuery.toLowerCase());
-      const itemType = item.category || 'General';
+      const matchesSearch = item.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           item.nameTelugu?.includes(searchQuery);
+      
+      const itemTypes = item.type || [];
       const matchesCategory = activeCategory === 'ALL' || 
-        itemType.toUpperCase() === activeCategory;
+        itemTypes.some(t => t.toUpperCase() === activeCategory);
       return matchesSearch && matchesCategory;
     });
   }, [stock, searchQuery, activeCategory]);
@@ -80,23 +88,23 @@ const StockScreen = ({ navigation }: any) => {
       activeOpacity={0.7}
     >
       <View style={styles.itemIconContainer}>
-        <Lucide.Layers size={20} color={item.isAvailable ? Colors.primary : Colors.textSecondary} />
+        <Lucide.Layers size={20} color={item.isActive ? Colors.primary : Colors.textSecondary} />
       </View>
       <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemType}>{item.category || 'General'}</Text>
+        <Text style={styles.itemType}>{(item.type || []).join(', ') || 'General'}</Text>
         <Text style={styles.itemPrice}>₹{item.price?.toLocaleString() || '0'}</Text>
       </View>
       
       <View style={styles.actionContainer}>
         <Switch
-          value={item.isAvailable}
-          onValueChange={() => handleToggleStatus(item.id, item.isAvailable)}
+          value={item.isActive}
+          onValueChange={() => handleToggleStatus(item.id, item.isActive)}
           trackColor={{ false: '#DEE2E6', true: Colors.primary + '40' }}
-          thumbColor={item.isAvailable ? Colors.primary : '#ADB5BD'}
+          thumbColor={item.isActive ? Colors.primary : '#ADB5BD'}
         />
-        <Text style={[styles.statusLabel, { color: item.isAvailable ? Colors.success : Colors.textSecondary }]}>
-          {item.isAvailable ? 'LIVE' : 'OFF'}
+        <Text style={[styles.statusLabel, { color: item.isActive ? Colors.success : Colors.textSecondary }]}>
+          {item.isActive ? 'LIVE' : 'OFF'}
         </Text>
       </View>
     </TouchableOpacity>
@@ -113,6 +121,9 @@ const StockScreen = ({ navigation }: any) => {
             >
               <Lucide.ArrowLeft size={24} color={Colors.text} />
             </TouchableOpacity>
+            <View style={styles.logoContainer}>
+              <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
+            </View>
             <Text style={styles.title}>Menu & Stock</Text>
             <TouchableOpacity 
               style={styles.addButton}
@@ -132,6 +143,15 @@ const StockScreen = ({ navigation }: any) => {
               onChangeText={handleSearch}
               placeholderTextColor="#999"
            />
+            <TouchableOpacity 
+              onPress={async () => {
+                const success = await exportMenuToPDF(stock);
+                if (!success) showToast('Failed to export menu', 'error');
+              }}
+              style={{ padding: 5 }}
+            >
+              <Lucide.FileDown size={20} color={Colors.primary} />
+            </TouchableOpacity>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll} contentContainerStyle={styles.catContent}>
@@ -207,6 +227,21 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: Colors.text,
     letterSpacing: -0.5,
+    marginLeft: 10,
+  },
+  logoContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.small,
+    padding: 4,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
   },
   backBtn: {
     padding: 8,

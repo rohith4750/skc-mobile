@@ -16,9 +16,11 @@ import {
 } from 'react-native';
 import { ArrowLeft, Layers, Tag, Info, IndianRupee, Save, Trash2, CheckCircle2 } from 'lucide-react-native';
 import { Colors, Shadows } from '../theme/colors';
-import { useCreateMenuItemMutation, useUpdateMenuItemMutation } from '../services/menuApi';
+import { useToast } from '../components/Toast';
+import { useCreateMenuItemMutation, useUpdateMenuItemMutation, useDeleteMenuItemMutation } from '../services/menuApi';
 
 const MenuItemFormScreen = ({ route, navigation }: any) => {
+  const { showToast } = useToast();
   const editItem = route.params?.item;
   const isEditing = !!editItem;
 
@@ -37,15 +39,11 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
 
   const [createMenuItem, { isLoading: isCreating }] = useCreateMenuItemMutation();
   const [updateMenuItem, { isLoading: isUpdating }] = useUpdateMenuItemMutation();
+  const [deleteMenuItem, { isLoading: isDeleting }] = useDeleteMenuItemMutation();
 
-  const loading = isCreating || isUpdating;
+  const loading = isCreating || isUpdating || isDeleting;
 
   const handleSave = async () => {
-    if (!formData.name.trim() || !formData.price || !formData.unit.trim()) {
-      Alert.alert('Missing Details', 'Dish Name, Price, and Unit (e.g. PLATE, KG) are required.');
-      return;
-    }
-
     try {
       const payload = {
         name: formData.name,
@@ -60,14 +58,63 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
 
       if (isEditing) {
         await updateMenuItem({ id: editItem.id, ...payload }).unwrap();
+        showToast('Item updated successfully', 'success');
       } else {
         await createMenuItem(payload).unwrap();
+        showToast('Item added to menu', 'success');
       }
       navigation.goBack();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving menu item:', error);
-      Alert.alert('Upload Failed', 'We couldn\'t save this item. Check your connection.');
+      const msg = error?.data?.error || 'We couldn\'t save this item. Check your connection.';
+      showToast(msg, 'error');
     }
+  };
+
+  const handleDelete = async () => {
+    if (!isEditing) return;
+
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to remove this dish? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMenuItem(editItem.id).unwrap();
+              showToast('Item deleted successfully', 'success');
+              navigation.goBack();
+            } catch (error: any) {
+              console.error('Delete Error:', error);
+              const backendError = error?.data?.error;
+              const details = error?.data?.details;
+              
+              if (backendError === 'Cannot delete item') {
+                Alert.alert(
+                  'Cannot Delete',
+                  details || 'This item is in use. Would you like to deactivate it instead?',
+                  [
+                    { text: 'No thanks', style: 'cancel' },
+                    { 
+                      text: 'Deactivate', 
+                      onPress: () => {
+                        setFormData({...formData, isActive: false});
+                        handleSave();
+                      }
+                    }
+                  ]
+                );
+              } else {
+                Alert.alert('Delete Failed', backendError || 'An error occurred while deleting.');
+              }
+            }
+          }
+        }
+      ]
+    );
   };
 
   const renderInput = (
@@ -119,6 +166,15 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
              <Text style={styles.headerTitle}>{isEditing ? 'Update Dish' : 'Add New Item'}</Text>
              <Text style={styles.headerSub}>{isEditing ? 'Modify existing menu data' : 'Expand your catering menu'}</Text>
           </View>
+          {isEditing && (
+            <TouchableOpacity 
+              style={styles.deleteBtn} 
+              onPress={handleDelete}
+              disabled={loading}
+            >
+              <Trash2 size={22} color={Colors.error} />
+            </TouchableOpacity>
+          )}
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -234,6 +290,14 @@ const styles = StyleSheet.create({
   },
   headerInfo: {
     flex: 1,
+  },
+  deleteBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.error + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 20,

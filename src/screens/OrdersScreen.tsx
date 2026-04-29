@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   TextInput,
   ScrollView,
+  Image
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+const LOGO = require('../assets/icon.png');
 import { 
   LayoutDashboard, 
   Plus, 
@@ -33,7 +35,7 @@ import { Colors, Shadows } from '../theme/colors';
 import { useGetOrdersQuery } from '../services/orderApi';
 import { Order } from '../types';
 
-const STATUS_FILTERS = ['ALL', 'PENDING', 'CONFIRMED', 'DELIVERED'];
+const STATUS_FILTERS = ['ALL', 'QUOTATION', 'PENDING', 'IN PROGRESS', 'COMPLETED', 'CANCELLED'];
 
 const OrdersScreen = ({ navigation }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,9 +73,14 @@ const OrdersScreen = ({ navigation }: any) => {
       
       const matchesFilter = () => {
         if (activeFilter === 'ALL') return true;
-        const status = order.status?.toLowerCase();
-        if (activeFilter === 'DELIVERED') return status === 'completed';
-        return status === activeFilter.toLowerCase();
+        const status = order.status?.toUpperCase() || '';
+        const filter = activeFilter.toUpperCase();
+        
+        // Match specific mappings
+        if (filter === 'IN PROGRESS' && (status === 'IN_PROGRESS' || status === 'IN PROGRESS' || status === 'PREPARING')) return true;
+        if (filter === 'COMPLETED' && (status === 'COMPLETED' || status === 'DELIVERED')) return true;
+        
+        return status === filter;
       };
       
       return matchesSearch && matchesFilter();
@@ -83,11 +90,13 @@ const OrdersScreen = ({ navigation }: any) => {
   const getStatusStyle = (status: string) => {
     const s = status?.toUpperCase();
     switch (s) {
-      case 'DELIVERED':
-      case 'COMPLETED': return { color: '#2E7D32', bg: '#E8F5E9' };
+      case 'COMPLETED':
+      case 'DELIVERED': return { color: '#2E7D32', bg: '#E8F5E9' };
       case 'PENDING': return { color: '#E65100', bg: '#FFF3E0' };
-      case 'CONFIRMED': return { color: '#1565C0', bg: '#E3F2FD' };
-      case 'IN_PROGRESS': return { color: Colors.primary, bg: Colors.primary + '15' };
+      case 'QUOTATION': return { color: '#1565C0', bg: '#E3F2FD' };
+      case 'IN_PROGRESS':
+      case 'IN PROGRESS':
+      case 'PREPARING': return { color: Colors.primary, bg: Colors.primary + '15' };
       case 'CANCELLED': return { color: Colors.error, bg: Colors.error + '15' };
       default: return { color: Colors.textSecondary, bg: '#F1F3F5' };
     }
@@ -155,6 +164,9 @@ const OrdersScreen = ({ navigation }: any) => {
             <ArrowLeft size={24} color={Colors.text} />
           </TouchableOpacity>
           <Text style={styles.mainTitle}>Order Dashboard</Text>
+          <View style={styles.logoContainer}>
+            <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
+          </View>
         </View>
         
         <View style={styles.searchBar}>
@@ -257,6 +269,20 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: Colors.text,
     letterSpacing: -0.5,
+  },
+  logoContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.small,
+    padding: 4,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
   },
   searchBar: {
     flexDirection: 'row',

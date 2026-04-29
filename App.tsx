@@ -7,6 +7,7 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import { store } from './src/redux/store';
 import AppNavigator from './src/navigation';
 import { AuthProvider } from './src/services/AuthContext';
+import { ToastProvider } from './src/components/Toast';
 
 // App Setup
 export default function App() {
@@ -15,10 +16,12 @@ export default function App() {
       <PaperProvider>
         <SafeAreaProvider>
           <AuthProvider>
-            <NavigationContainer>
-              <StatusBar style="auto" />
-              <AppNavigator />
-            </NavigationContainer>
+            <ToastProvider>
+              <NavigationContainer>
+                <StatusBar style="auto" />
+                <AppNavigator />
+              </NavigationContainer>
+            </ToastProvider>
           </AuthProvider>
         </SafeAreaProvider>
       </PaperProvider>

@@ -41,9 +41,14 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
   const getStatusConfig = (status: string) => {
     const s = status?.toUpperCase();
     switch (s) {
-      case 'DELIVERED': return { color: '#2E7D32', bg: '#E8F5E9', label: 'DELIVERED' };
+      case 'COMPLETED':
+      case 'DELIVERED': return { color: '#2E7D32', bg: '#E8F5E9', label: 'COMPLETED' };
       case 'PENDING': return { color: '#E65100', bg: '#FFF3E0', label: 'PENDING' };
-      case 'CONFIRMED': return { color: '#1565C0', bg: '#E3F2FD', label: 'CONFIRMED' };
+      case 'QUOTATION': return { color: '#1565C0', bg: '#E3F2FD', label: 'QUOTATION' };
+      case 'IN_PROGRESS':
+      case 'IN PROGRESS':
+      case 'PREPARING': return { color: Colors.primary, bg: Colors.primary + '15', label: 'IN PROGRESS' };
+      case 'CANCELLED': return { color: Colors.error, bg: Colors.error + '15', label: 'CANCELLED' };
       default: return { color: Colors.textSecondary, bg: '#F1F3F5', label: status };
     }
   };

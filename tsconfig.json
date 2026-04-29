@@ -3,10 +3,17 @@
   "compilerOptions": {
     "strict": true,
     "jsx": "react-native",
+    "module": "esnext",
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "baseUrl": "."
   },
-  "include": ["src", "App.tsx", "index.ts"]
+  "include": [
+    "src",
+    "App.tsx",
+    "index.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ]
 }

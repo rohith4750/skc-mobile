@@ -3,6 +3,7 @@ import { apiSlice } from './apiSlice';
 export interface DashboardStats {
   customers: number;
   stock: number;
+  menuItems?: number;
   orders: number;
   bills: number;
   todayOrders: number;

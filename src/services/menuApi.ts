@@ -33,10 +33,10 @@ export const menuApi = apiSlice.injectEndpoints({
       invalidatesTags: ['Product'],
     }),
     updateMenuItem: builder.mutation<MenuItem, Partial<MenuItem> & { id: string }>({
-      query: ({ id, ...patch }) => ({
+      query: ({ id, ...body }) => ({
         url: `/menu/${id}`,
-        method: 'PATCH',
-        body: patch,
+        method: 'PUT',
+        body,
       }),
       invalidatesTags: (_result, _error, { id }) => [{ type: 'Product', id }, 'Product'],
     }),

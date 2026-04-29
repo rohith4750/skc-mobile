@@ -5,12 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Dimensions,
   ActivityIndicator,
   RefreshControl,
-  InteractionManager
+  InteractionManager,
+  Image
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+const LOGO = require('../assets/icon.png');
 import {
   Users,
   ShoppingBag,
@@ -21,7 +23,8 @@ import {
   Calendar,
   Wallet,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Truck
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Shadows } from '../theme/colors';
@@ -29,6 +32,7 @@ import Constants from 'expo-constants';
 import { useGetMobileDashboardQuery } from '../services/dashboardApi';
 import { apiSlice } from '../services/apiSlice';
 import { useAuth } from '../services/AuthContext';
+import * as RBAC from '../utils/rbac';
 
 const { width } = Dimensions.get('window');
 
@@ -87,6 +91,34 @@ const HomeScreen = ({ navigation }: any) => {
   const stats = data?.stats;
   const recentOrders = data?.recentOrders || [];
 
+  // SMART COUNTING: Improved date parsing
+  const todayOrdersFromList = React.useMemo(() => {
+    try {
+      const today = new Date().toDateString();
+      return recentOrders.filter((o: any) => {
+        if (!o.createdAt) return false;
+        const orderDate = new Date(o.createdAt).toDateString();
+        return orderDate === today;
+      }).length;
+    } catch (e) {
+      return 0;
+    }
+  }, [recentOrders]);
+
+  const displayTodayOrders = (stats?.todayOrders && stats.todayOrders > 0) ? stats.todayOrders : todayOrdersFromList;
+
+  // Debugging order visibility
+  React.useEffect(() => {
+    if (data) {
+      console.log('📊 Dashboard Data Received:', {
+        serverStatsCount: stats?.todayOrders,
+        computedTodayCount: todayOrdersFromList,
+        recentOrdersCount: recentOrders.length,
+        userRole: user?.role
+      });
+    }
+  }, [data, todayOrdersFromList, user]);
+
   if (isLoading && !data) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -142,14 +174,12 @@ const HomeScreen = ({ navigation }: any) => {
             <Text style={styles.greeting}>Hello, {user?.username || 'Rohith'}</Text>
             <Text style={styles.subGreeting}>Here's what's happening today</Text>
           </View>
-          <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('MoreStack')}>
-            <View style={styles.profileImagePlaceholder}>
-              <Users size={20} color={Colors.primary} />
-            </View>
+          <TouchableOpacity style={styles.logoButton} onPress={() => navigation.navigate('MoreStack')}>
+            <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
           </TouchableOpacity>
         </View>
 
-        {/* Hero Section - Today's Summary */}
+        {/* Hero Section - Role Specific Summary */}
         <LinearGradient
           colors={[Colors.primary, Colors.primaryDark]}
           start={{ x: 0, y: 0 }}
@@ -158,14 +188,17 @@ const HomeScreen = ({ navigation }: any) => {
         >
           <View style={styles.heroTop}>
             <View>
-              <Text style={styles.heroLabel}>{isAdmin ? "Today's Sales" : "Active Delivery Status"}</Text>
+              <Text style={styles.heroLabel}>
+                {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) ? "Today's Sales" : "Active Logistics"}
+              </Text>
               <Text style={styles.heroValue}>
-                {isAdmin ? (isLoading ? '...' : `₹${Number(stats?.todayTotalAmount || 0).toLocaleString('en-IN')}`)
-                         : (isLoading ? '...' : 'Track Logistics')}
+                {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) 
+                  ? (isLoading ? '...' : `₹${Number(stats?.todayTotalAmount || 0).toLocaleString('en-IN')}`)
+                  : "Tracking Live"}
               </Text>
             </View>
             <View style={styles.trendBadge}>
-              <TrendingUp size={14} color={Colors.success} />
+              <Activity size={14} color={Colors.success} />
               <Text style={styles.trendText}>Live</Text>
             </View>
           </View>
@@ -175,25 +208,34 @@ const HomeScreen = ({ navigation }: any) => {
           <View style={styles.heroBottom}>
             <View style={styles.heroStatItem}>
               <ShoppingBag size={12} color={Colors.white} style={{ opacity: 0.7 }} />
-              <Text style={styles.heroStatLabel}>Orders</Text>
-              <Text style={styles.heroStatText} numberOfLines={1}>{isLoading ? '...' : stats?.todayOrders}</Text>
+              <Text style={styles.heroStatLabel}>Today's Orders</Text>
+              <Text style={styles.heroStatText}>{isLoading ? '...' : displayTodayOrders}</Text>
             </View>
-            <View style={styles.heroStatItem}>
-              <ShoppingBag size={12} color={Colors.white} style={{ opacity: 0.7 }} />
-              <Text style={styles.heroStatLabel}>{isAdmin ? "Orders" : "Assigned"}</Text>
-              <Text style={styles.heroStatText} numberOfLines={1}>{isLoading ? '...' : stats?.todayOrders}</Text>
-            </View>
-            {isAdmin && (
+            
+            {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) ? (
               <>
                 <View style={styles.heroStatItem}>
                   <Wallet size={12} color={Colors.white} style={{ opacity: 0.7 }} />
-                  <Text style={styles.heroStatLabel}>Paid</Text>
-                  <Text style={styles.heroStatText} numberOfLines={1}>₹{isLoading ? '...' : Number(stats?.todayRevenue || 0).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.heroStatLabel}>Revenue</Text>
+                  <Text style={styles.heroStatText}>₹{isLoading ? '...' : Number(stats?.todayRevenue || 0).toLocaleString('en-IN')}</Text>
                 </View>
                 <View style={styles.heroStatItem}>
                   <Clock size={12} color={Colors.white} style={{ opacity: 0.7 }} />
                   <Text style={styles.heroStatLabel}>Pending</Text>
-                  <Text style={styles.heroStatText} numberOfLines={1}>₹{isLoading ? '...' : Number(stats?.todayPendingAmount || 0).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.heroStatText}>₹{isLoading ? '...' : Number(stats?.todayPendingAmount || 0).toLocaleString('en-IN')}</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.heroStatItem}>
+                  <Truck size={12} color={Colors.white} style={{ opacity: 0.7 }} />
+                  <Text style={styles.heroStatLabel}>On Duty</Text>
+                  <Text style={styles.heroStatText}>{isLoading ? '...' : stats?.activeOrders || 0}</Text>
+                </View>
+                <View style={styles.heroStatItem}>
+                  <Users size={12} color={Colors.white} style={{ opacity: 0.7 }} />
+                  <Text style={styles.heroStatLabel}>Workforce</Text>
+                  <Text style={styles.heroStatText}>{isLoading ? '...' : stats?.customers || 0}</Text>
                 </View>
               </>
             )}
@@ -201,39 +243,37 @@ const HomeScreen = ({ navigation }: any) => {
         </LinearGradient>
 
         {/* Stats Grid */}
-        <Text style={styles.sectionTitle}>Overview</Text>
+        <Text style={styles.sectionTitle}>Dashboard Overview</Text>
         <View style={styles.statsGrid}>
-          <StatCard
-            title="Customers"
-            value={stats?.customers?.toString() || '0'}
-            icon={Users}
-            color={Colors.info}
-            isLoading={isLoading}
-          />
-          <StatCard
-            title="Stock"
-            value={stats?.stock?.toString() || '0'}
-            icon={ShoppingBag}
-            color={Colors.success}
-            isLoading={isLoading}
-          />
-          <StatCard
-            title="Stock"
-            value={stats?.stock?.toString() || '0'}
-            icon={ShoppingBag}
-            color={Colors.success}
-            isLoading={isLoading}
-          />
-          {isAdmin && (
+          {RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_CUSTOMERS) && (
             <StatCard
-              title="Outstanding"
-              value={`₹${((stats?.outstanding || 0) / 1000).toFixed(1)}k`}
-              icon={Wallet}
-              color={Colors.error}
-              subValue="Across all bills"
+              title="Total Customers"
+              value={stats?.customers?.toString() || '0'}
+              icon={Users}
+              color={Colors.info}
               isLoading={isLoading}
             />
           )}
+          
+          <StatCard
+            title={RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_MENU_STOCK) ? "Menu Items" : "Delivery Personnel"}
+            value={(stats?.menuItems || stats?.stock || 0).toString()}
+            icon={ShoppingBag}
+            color={Colors.success}
+            isLoading={isLoading}
+          />
+
+          {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) && (
+            <StatCard
+              title="Outstanding Bills"
+              value={`₹${((stats?.outstanding || 0) / 1000).toFixed(1)}k`}
+              icon={Wallet}
+              color={Colors.error}
+              subValue="Pending payments"
+              isLoading={isLoading}
+            />
+          )}
+
           <StatCard
             title="Active Operations"
             value={stats?.activeOrders?.toString() || '0'}
@@ -247,19 +287,15 @@ const HomeScreen = ({ navigation }: any) => {
         {/* Quick Actions */}
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.actionsGrid}>
-          <QuickAction
-            title="New Order"
-            icon={ShoppingBag}
-            color={Colors.primary}
-            onPress={() => navigation.navigate('Orders', { screen: 'NewOrder' })}
-          />
-          <QuickAction
-            title="New Order"
-            icon={ShoppingBag}
-            color={Colors.primary}
-            onPress={() => navigation.navigate('Orders', { screen: 'NewOrder' })}
-          />
-          {isAdmin && (
+          {RBAC.hasPermission(user?.role, RBAC.Permissions.CREATE_ORDER) && (
+            <QuickAction
+              title="New Order"
+              icon={ShoppingBag}
+              color={Colors.primary}
+              onPress={() => navigation.navigate('Orders', { screen: 'NewOrder' })}
+            />
+          )}
+          {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) && (
             <QuickAction
               title="Create Bill"
               icon={ArrowUpRight}
@@ -267,7 +303,7 @@ const HomeScreen = ({ navigation }: any) => {
               onPress={() => navigation.navigate('Bills')}
             />
           )}
-          {isAdmin && (
+          {RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_EXPENSES) && (
             <QuickAction
               title="Add Expense"
               icon={TrendingUp}
@@ -276,7 +312,7 @@ const HomeScreen = ({ navigation }: any) => {
             />
           )}
           <QuickAction
-            title="Menu"
+            title="Stock"
             icon={Users}
             color={Colors.secondary}
             onPress={() => navigation.navigate('MoreStack', { screen: 'Stock' })}
@@ -291,38 +327,49 @@ const HomeScreen = ({ navigation }: any) => {
           </TouchableOpacity>
         </View>
 
-        {(recentOrders || []).map((order: any) => {
-          const statusColors: any = {
-            'DELIVERED': Colors.success,
-            'PENDING': Colors.warning,
-            'CONFIRMED': Colors.info,
-            'PREPARING': Colors.primary,
-            'CANCELLED': Colors.error,
-          };
-          const statusColor = statusColors[order.status] || Colors.textSecondary;
+        {/* Recent Orders List - Displayed for everyone to ensure visibility */}
+        {(recentOrders && recentOrders.length > 0) ? (
+          recentOrders.map((order: any) => {
+            const statusColors: any = {
+              'COMPLETED': Colors.success,
+              'DELIVERED': Colors.success,
+              'PENDING': Colors.warning,
+              'QUOTATION': Colors.info,
+              'IN PROGRESS': Colors.primary,
+              'IN_PROGRESS': Colors.primary,
+              'CANCELLED': Colors.error,
+            };
+            const s = order.status?.toUpperCase() || 'PENDING';
+            const statusColor = statusColors[s] || Colors.textSecondary;
 
-          return (
-            <TouchableOpacity
-              key={order.id}
-              style={[styles.orderItem, Shadows.small]}
-              onPress={() => navigation.navigate('Orders', { screen: 'OrderDetail', params: { order } })}
-            >
-              <View style={styles.orderInfo}>
-                <Text style={styles.customerName}>{order.customer?.name || 'Customer'}</Text>
-                <Text style={styles.orderMeta}>
-                  {order.items?.length || 0} Items · {order.address || 'Standard Delivery'}
-                </Text>
-              </View>
-              <View style={styles.orderRight}>
-                <Text style={styles.orderAmount}>₹{Number(order.totalAmount).toLocaleString('en-IN')}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
-                  <Text style={[styles.statusText, { color: statusColor }]}>{order.status}</Text>
+            return (
+              <TouchableOpacity
+                key={order.id || order._id || Math.random().toString()}
+                style={[styles.orderItem, Shadows.small]}
+                onPress={() => navigation.navigate('Orders', { screen: 'OrderDetail', params: { order } })}
+              >
+                <View style={styles.orderInfo}>
+                  <Text style={styles.customerName}>{order.customer?.name || 'Standard Order'}</Text>
+                  <Text style={styles.orderMeta}>
+                    {order.items?.length || 0} Items · {order.address || 'Delivery'}
+                  </Text>
                 </View>
-              </View>
-              <ChevronRight size={18} color={Colors.textTertiary} style={styles.chevron} />
-            </TouchableOpacity>
-          );
-        })}
+                <View style={styles.orderRight}>
+                  <Text style={styles.orderAmount}>₹{Number(order.totalAmount || 0).toLocaleString('en-IN')}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
+                    <Text style={[styles.statusText, { color: statusColor }]}>{order.status || 'Pending'}</Text>
+                  </View>
+                </View>
+                <ChevronRight size={18} color={Colors.textTertiary} style={styles.chevron} />
+              </TouchableOpacity>
+            );
+          })
+        ) : !isLoading ? (
+          <View style={styles.emptyContainer}>
+            <ShoppingBag size={40} color={Colors.textTertiary} opacity={0.5} />
+            <Text style={styles.emptyText}>No recent orders yet</Text>
+          </View>
+        ) : null}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -355,22 +402,19 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 4,
   },
-  profileButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  logoButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.small,
+    padding: 6,
   },
-  profileImagePlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.primary + '10',
-    justifyContent: 'center',
-    alignItems: 'center',
+  headerLogo: {
+    width: '100%',
+    height: '100%',
   },
   heroCard: {
     backgroundColor: Colors.primary,
@@ -555,6 +599,23 @@ const styles = StyleSheet.create({
   },
   chevron: {
     marginLeft: 'auto',
+  },
+  emptyContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#F1F1F1',
+    borderStyle: 'dashed',
+  },
+  emptyText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: Colors.textTertiary,
+    fontWeight: '600',
   }
 });
 

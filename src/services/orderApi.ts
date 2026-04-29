@@ -28,6 +28,20 @@ export const orderApi = apiSlice.injectEndpoints({
         'Order',
       ],
     }),
+    createOrder: builder.mutation<Order, any>({
+      query: (newOrder) => ({
+        url: 'orders',
+        method: 'POST',
+        body: newOrder,
+      }),
+      invalidatesTags: ['Order'],
+    }),
+    sendOrderEmail: builder.mutation<{ success: boolean }, string>({
+      query: (id) => ({
+        url: `orders/${id}/send-email`,
+        method: 'POST',
+      }),
+    }),
   }),
 });
 
@@ -35,4 +49,6 @@ export const {
   useGetOrdersQuery,
   useGetOrderByIdQuery,
   useUpdateOrderStatusMutation,
+  useCreateOrderMutation,
+  useSendOrderEmailMutation,
 } = orderApi;

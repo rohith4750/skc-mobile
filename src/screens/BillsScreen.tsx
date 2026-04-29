@@ -7,17 +7,24 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   TextInput,
+  Image,
+  Linking
 } from 'react-native';
-import { Receipt, CreditCard, Clock, AlertTriangle, Search, ArrowLeft } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+const LOGO = require('../assets/icon.png');
+import { Receipt, CreditCard, Clock, AlertTriangle, Search, ArrowLeft, Filter, Download, FileText, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Shadows } from '../theme/colors';
+import { useToast } from '../components/Toast';
 import { useGetBillsQuery } from '../services/adminApi';
+import { exportBillToPDF } from '../utils/pdfGenerator';
 import { Bill } from '../types';
 
 const BillsScreen = ({ navigation }: any) => {
+  const { showToast } = useToast();
+  const [isFiltersVisible, setIsFiltersVisible] = useState(false);
   // New High-Performance Data Fetching
   const { 
     data: bills = [], 
@@ -116,9 +123,16 @@ const BillsScreen = ({ navigation }: any) => {
                    : 'Waiting for payment'}
               </Text>
            </View>
-           <TouchableOpacity style={styles.actionBtn}>
-              <Text style={styles.actionBtnText}>History</Text>
-           </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionBtn}
+              onPress={async () => {
+                const success = await exportBillToPDF(item);
+                if (!success) showToast('Could not generate PDF', 'error');
+              }}
+            >
+              <Download size={14} color={Colors.primary} />
+              <Text style={styles.actionBtnText}>PDF</Text>
+            </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -134,8 +148,16 @@ const BillsScreen = ({ navigation }: any) => {
             >
               <ArrowLeft size={24} color={Colors.text} />
             </TouchableOpacity>
+            <View style={styles.logoContainer}>
+              <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
+            </View>
             <Text style={styles.title}>Financials</Text>
-            <AlertTriangle size={24} color={Colors.textSecondary} />
+            <TouchableOpacity 
+              style={[styles.filterToggle, isFiltersVisible && styles.filterToggleActive]} 
+              onPress={() => setIsFiltersVisible(!isFiltersVisible)}
+            >
+              <Filter size={20} color={isFiltersVisible ? Colors.white : Colors.textSecondary} />
+            </TouchableOpacity>
         </View>
 
         <View style={styles.searchBar}>
@@ -175,56 +197,71 @@ const BillsScreen = ({ navigation }: any) => {
            </View>
         </View>
 
-        <View style={styles.filterRow}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
-            contentContainerStyle={styles.filterScrollContent}
-          >
-            {['All', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
-              <TouchableOpacity
-                key={m}
-                onPress={() => setSelectedMonth(i)}
-                style={[styles.monthTab, selectedMonth === i && styles.activeMonthTab]}
+        {isFiltersVisible && (
+          <View style={styles.collapsibleFilters}>
+            <View style={styles.filterRow}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.filterScrollContent}
               >
-                <Text style={[styles.monthTabText, selectedMonth === i && styles.activeMonthTabText]}>
-                  {m}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.secondaryFilterRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
-             <View style={styles.yearPicker}>
-                <Text style={styles.pickerLabel}>Year:</Text>
-                {[2024, 2025, 2026].map(y => (
-                  <TouchableOpacity 
-                    key={y}
-                    onPress={() => setSelectedYear(y)}
-                    style={[styles.miniTab, selectedYear === y && styles.activeMiniTab]}
+                {['All', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
+                  <TouchableOpacity
+                    key={m}
+                    onPress={() => setSelectedMonth(i)}
+                    style={[styles.monthTab, selectedMonth === i && styles.activeMonthTab]}
                   >
-                    <Text style={[styles.miniTabText, selectedYear === y && styles.activeMiniTabText]}>{y}</Text>
+                    <Text style={[styles.monthTabText, selectedMonth === i && styles.activeMonthTabText]}>
+                      {m}
+                    </Text>
                   </TouchableOpacity>
                 ))}
-             </View>
+              </ScrollView>
+            </View>
 
-             <View style={styles.vertDivider} />
+            <View style={styles.secondaryFilterRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+                <View style={styles.yearPicker}>
+                    <Text style={styles.pickerLabel}>Year:</Text>
+                    {[2024, 2025, 2026].map(y => (
+                      <TouchableOpacity 
+                        key={y}
+                        onPress={() => setSelectedYear(y)}
+                        style={[styles.miniTab, selectedYear === y && styles.activeMiniTab]}
+                      >
+                        <Text style={[styles.miniTabText, selectedYear === y && styles.activeMiniTabText]}>{y}</Text>
+                      </TouchableOpacity>
+                    ))}
+                </View>
 
-             {['ALL', 'PAID', 'UNPAID'].map((f) => (
-              <TouchableOpacity
-                key={f}
-                onPress={() => setFilter(f as any)}
-                style={[styles.filterTab, filter === f && styles.activeFilterTab]}
-              >
-                <Text style={[styles.filterText, filter === f && styles.activeFilterText]}>
-                  {f}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+                <View style={styles.vertDivider} />
+
+                {['ALL', 'PAID', 'UNPAID'].map((f) => (
+                  <TouchableOpacity
+                    key={f}
+                    onPress={() => setFilter(f as any)}
+                    style={[styles.filterTab, filter === f && styles.activeFilterTab]}
+                  >
+                    <Text style={[styles.filterText, filter === f && styles.activeFilterText]}>
+                      {f}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.monthlyDownloadBtn}
+              onPress={() => {
+                const url = `https://www.skccaterers.in/api/bills/export?month=${selectedMonth}&year=${selectedYear}`;
+                Linking.openURL(url).catch(() => showToast('Failed to export', 'error'));
+              }}
+            >
+              <FileText size={18} color={Colors.white} />
+              <Text style={styles.monthlyDownloadText}>Download {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][selectedMonth-1]} Report</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {isLoading ? (
@@ -289,6 +326,59 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '900',
     color: Colors.text,
+    marginLeft: 10,
+  },
+  filterToggle: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterToggleActive: {
+    backgroundColor: Colors.primary,
+  },
+  collapsibleFilters: {
+    marginTop: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
+    paddingVertical: 15,
+    marginHorizontal: 15,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  monthlyDownloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    marginHorizontal: 20,
+    marginTop: 15,
+    marginBottom: 5,
+    paddingVertical: 12,
+    borderRadius: 15,
+    gap: 10,
+    ...Shadows.small,
+  },
+  monthlyDownloadText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  logoContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.small,
+    padding: 4,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
   },
   premiumStatsCard: {
     marginHorizontal: 25,
@@ -557,8 +647,11 @@ const styles = StyleSheet.create({
   actionBtn: {
     backgroundColor: Colors.primary + '10',
     paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   actionBtnText: {
     fontSize: 12,

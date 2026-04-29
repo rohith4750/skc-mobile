@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   RefreshControl,
@@ -11,7 +10,10 @@ import {
   FlatList,
   Alert,
   Linking,
+  Image
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+const LOGO = require('../assets/icon.png');
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
 import {
@@ -167,7 +169,10 @@ const DeliveryScreen = ({ navigation }: any) => {
           >
             <ArrowLeft size={24} color={Colors.text} />
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
+          <View style={styles.logoContainer}>
+            <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.title}>Logistics</Text>
             <Text style={styles.subtitle}>{deliveryOrders.length} active operations</Text>
           </View>
@@ -339,6 +344,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  logoContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.small,
+    padding: 4,
+  },
+  headerLogo: {
+    width: '100%',
+    height: '100%',
   },
   mapPlaceholder: {
     height: 200,

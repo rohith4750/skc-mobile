@@ -26,9 +26,11 @@ import MenuItemFormScreen from '../screens/MenuItemFormScreen';
 import MaterialsScreen from '../screens/MaterialsScreen';
 import ExpensesScreen from '../screens/ExpensesScreen';
 import SupervisorsScreen from '../screens/SupervisorsScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 
 import { useAuth } from '../services/AuthContext';
 import { Colors } from '../theme/colors';
+import { hasPermission, Permissions } from '../utils/rbac';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -59,7 +61,10 @@ const MoreStack = () => (
 
 const MainTabs = () => {
   const { user } = useAuth();
-  const isAdmin = ['admin', 'superadmin'].includes(user?.role?.toLowerCase() || '');
+  
+  const canViewBills = hasPermission(user?.role, Permissions.VIEW_BILLS_TAB);
+  const canViewOrders = hasPermission(user?.role, Permissions.VIEW_ORDERS_TAB);
+  const canViewDelivery = hasPermission(user?.role, Permissions.VIEW_DELIVERY_TAB);
 
   return (
     <Tab.Navigator
@@ -69,7 +74,7 @@ const MainTabs = () => {
           if (route.name === 'Orders') return <ShoppingBag size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
           if (route.name === 'Bills') return <Receipt size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
           if (route.name === 'Delivery') return <Truck size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
-          if (route.name === 'More') return <MoreHorizontal size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
+          if (route.name === 'MoreStack') return <MoreHorizontal size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
           return null;
         },
         tabBarActiveTintColor: Colors.primary,
@@ -95,11 +100,15 @@ const MainTabs = () => {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Orders" component={OrdersStack} />
-      {isAdmin && (
+      {canViewOrders && (
+        <Tab.Screen name="Orders" component={OrdersStack} />
+      )}
+      {canViewBills && (
         <Tab.Screen name="Bills" component={BillsScreen} />
       )}
-      <Tab.Screen name="Delivery" component={DeliveryScreen} />
+      {canViewDelivery && (
+        <Tab.Screen name="Delivery" component={DeliveryScreen} />
+      )}
       <Tab.Screen 
         name="MoreStack" 
         component={MoreStack} 
@@ -123,7 +132,10 @@ const AppNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade_from_bottom' }}>
       {token === null ? (
-        <Stack.Screen name="Login" component={LoginScreen} />
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+        </>
       ) : (
         <Stack.Screen name="Main" component={MainTabs} />
       )}
