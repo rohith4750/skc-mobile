@@ -8,11 +8,12 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { ArrowLeft, User, Phone, Calendar, Clock, MapPin, Receipt, CheckCircle, Package } from 'lucide-react-native';
+import { ArrowLeft, User, Phone, Calendar, Clock, MapPin, Receipt, CheckCircle, Package, Share2 } from 'lucide-react-native';
 import { Colors, Shadows } from '../theme/colors';
 
 import { useGetOrderByIdQuery, useUpdateOrderStatusMutation } from '../services/orderApi';
 import { ActivityIndicator, Alert } from 'react-native';
+import { shareOrderPdf } from '../utils/pdfSharing';
 
 const OrderDetailScreen = ({ route, navigation }: any) => {
   const { order: initialOrder } = route.params;
@@ -24,6 +25,28 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
   } = useGetOrderByIdQuery(initialOrder.id);
 
   const [updateStatus, { isLoading: isUpdating }] = useUpdateOrderStatusMutation();
+
+  const handleSharePress = useCallback(() => {
+    const isQuotation = order.status?.toLowerCase() === 'quotation';
+    Alert.alert(
+      'Export Document',
+      'Choose which document you would like to generate and share:',
+      [
+        {
+          text: isQuotation ? 'Share Quotation PDF' : 'Share Bill PDF',
+          onPress: () => shareOrderPdf(order, 'bill', isQuotation),
+        },
+        {
+          text: 'Share Menu Details PDF',
+          onPress: () => shareOrderPdf(order, 'menu', isQuotation),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  }, [order]);
 
   const handleProcess = useCallback(async () => {
     try {
@@ -78,8 +101,8 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
               <ArrowLeft size={24} color={Colors.white} />
             </TouchableOpacity>
             <Text style={styles.heroTitle}>ORDER DETAILS</Text>
-            <TouchableOpacity style={styles.iconButton}>
-              <Receipt size={22} color={Colors.white} />
+            <TouchableOpacity onPress={handleSharePress} style={styles.iconButton} activeOpacity={0.7}>
+              <Share2 size={22} color={Colors.white} />
             </TouchableOpacity>
           </View>
           

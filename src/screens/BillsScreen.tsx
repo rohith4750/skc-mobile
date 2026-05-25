@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Shadows } from '../theme/colors';
 import { useToast } from '../components/Toast';
 import { useGetBillsQuery } from '../services/adminApi';
-import { exportBillToPDF } from '../utils/pdfGenerator';
+import { shareOrderPdf } from '../utils/pdfSharing';
 import { Bill } from '../types';
 
 const BillsScreen = ({ navigation }: any) => {
@@ -87,7 +87,18 @@ const BillsScreen = ({ navigation }: any) => {
   const renderBillItem = ({ item }: { item: Bill }) => {
     const status = getStatusConfig(item.status);
     return (
-      <TouchableOpacity style={styles.billCard} activeOpacity={0.8}>
+      <TouchableOpacity 
+        style={styles.billCard} 
+        activeOpacity={0.8}
+        onPress={() => {
+          if (item.order) {
+            navigation.navigate('Orders', {
+              screen: 'OrderDetail',
+              params: { order: item.order }
+            });
+          }
+        }}
+      >
         <View style={styles.billHeader}>
           <View style={styles.idBox}>
             <Text style={styles.idLabel}>BILL NO.</Text>
@@ -126,8 +137,11 @@ const BillsScreen = ({ navigation }: any) => {
             <TouchableOpacity 
               style={styles.actionBtn}
               onPress={async () => {
-                const success = await exportBillToPDF(item);
-                if (!success) showToast('Could not generate PDF', 'error');
+                if (item.order) {
+                  await shareOrderPdf(item.order, 'bill', false, item);
+                } else {
+                  showToast('Order details not available', 'error');
+                }
               }}
             >
               <Download size={14} color={Colors.primary} />
