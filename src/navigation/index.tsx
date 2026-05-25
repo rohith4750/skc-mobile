@@ -14,6 +14,7 @@ import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import OrdersScreen from '../screens/OrdersScreen';
 import OrderDetailScreen from '../screens/OrderDetailScreen';
+import NewOrderScreen from '../screens/NewOrderScreen';
 import BillsScreen from '../screens/BillsScreen';
 import DeliveryScreen from '../screens/DeliveryScreen';
 import MoreScreen from '../screens/MoreScreen';
@@ -41,6 +42,7 @@ const OrdersStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
     <Stack.Screen name="OrdersHome" component={OrdersScreen} />
     <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+    <Stack.Screen name="NewOrder" component={NewOrderScreen} />
   </Stack.Navigator>
 );
 
