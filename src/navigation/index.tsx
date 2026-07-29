@@ -1,7 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { 
   Home as HomeIcon, 
   ShoppingBag, 
@@ -30,7 +30,7 @@ import SupervisorsScreen from '../screens/SupervisorsScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 
 import { useAuth } from '../services/AuthContext';
-import { Colors } from '../theme/colors';
+import { Colors, Shadows } from '../theme/colors';
 import { hasPermission, Permissions } from '../utils/rbac';
 
 const Stack = createNativeStackNavigator();
@@ -71,34 +71,29 @@ const MainTabs = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          if (route.name === 'Home') return <HomeIcon size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
-          if (route.name === 'Orders') return <ShoppingBag size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
-          if (route.name === 'Bills') return <Receipt size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
-          if (route.name === 'Delivery') return <Truck size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
-          if (route.name === 'MoreStack') return <MoreHorizontal size={24} color={color} strokeWidth={focused ? 2.5 : 2} />;
-          return null;
+        tabBarIcon: ({ focused, color }) => {
+          let IconComponent = HomeIcon;
+          if (route.name === 'Home') IconComponent = HomeIcon;
+          else if (route.name === 'Orders') IconComponent = ShoppingBag;
+          else if (route.name === 'Bills') IconComponent = Receipt;
+          else if (route.name === 'Delivery') IconComponent = Truck;
+          else if (route.name === 'MoreStack') IconComponent = MoreHorizontal;
+
+          return (
+            <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
+              <IconComponent 
+                size={22} 
+                color={focused ? Colors.primary : Colors.textTertiary} 
+                strokeWidth={focused ? 2.3 : 1.8} 
+              />
+            </View>
+          );
         },
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textTertiary,
         headerShown: false,
-        tabBarStyle: {
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 65,
-          backgroundColor: Colors.white,
-          borderTopColor: Colors.border,
-          elevation: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 10,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '700',
-          marginTop: -4,
-        },
+        tabBarStyle: styles.tabBar,
+        tabBarLabelStyle: styles.tabBarLabel,
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
@@ -120,12 +115,40 @@ const MainTabs = () => {
   );
 };
 
+const styles = StyleSheet.create({
+  tabBar: {
+    height: Platform.OS === 'ios' ? 82 : 68,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+    paddingTop: 8,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    ...Shadows.small,
+  },
+  tabBarLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+    letterSpacing: -0.2,
+  },
+  iconWrapper: {
+    width: 40,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+  },
+  iconWrapperActive: {
+    backgroundColor: Colors.primaryLight,
+  },
+});
+
 const AppNavigator = () => {
   const { token, isLoading } = useAuth();
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.white }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
         <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );

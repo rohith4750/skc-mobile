@@ -10,14 +10,12 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
-import { Menu, X, LogOut, LayoutDashboard, User, Settings, ShoppingBag, Receipt, Package, CreditCard, UserCheck } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
+import { Menu, LogOut, LayoutDashboard, PlusCircle, User, ShoppingBag, Receipt, Package, CreditCard, UserCheck, X } from 'lucide-react-native';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useAuth } from '../services/AuthContext';
 
 const { width } = Dimensions.get('window');
-const DRAWER_WIDTH = width * 0.75;
-
-import { InteractionManager } from 'react-native';
+const DRAWER_WIDTH = Math.min(width * 0.78, 320);
 
 const LayoutShell = React.memo(({ children, activeTab, onTabPress }: any) => {
   const { signOut, user } = useAuth();
@@ -30,12 +28,12 @@ const LayoutShell = React.memo(({ children, activeTab, onTabPress }: any) => {
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: open ? 0 : -DRAWER_WIDTH,
-        duration: 300,
+        duration: 250,
         useNativeDriver: true,
       }),
       Animated.timing(overlayAnim, {
         toValue: open ? 1 : 0,
-        duration: 300,
+        duration: 250,
         useNativeDriver: true,
       }),
     ]).start();
@@ -43,6 +41,7 @@ const LayoutShell = React.memo(({ children, activeTab, onTabPress }: any) => {
 
   const menuItems = [
     { id: 'Orders', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'NewOrder', icon: PlusCircle, label: 'Create Order' },
     { id: 'Customers', icon: User, label: 'Customers' },
     { id: 'Stock', icon: ShoppingBag, label: 'Menu Items' },
     { id: 'Materials', icon: Package, label: 'Materials' },
@@ -51,19 +50,18 @@ const LayoutShell = React.memo(({ children, activeTab, onTabPress }: any) => {
     { id: 'Supervisors', icon: UserCheck, label: 'Supervisors' },
   ];
 
-  // Automatically close drawer when active tab changes
   React.useEffect(() => {
     toggleDrawer(false);
   }, [activeTab]);
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       
       {/* Content */}
       <View style={{ flex: 1 }}>{children}</View>
 
-      {/* Global Overlay for closing */}
+      {/* Global Overlay */}
       {isOpen && (
         <TouchableOpacity
           activeOpacity={1}
@@ -78,11 +76,20 @@ const LayoutShell = React.memo(({ children, activeTab, onTabPress }: any) => {
       <Animated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }] }]}>
         <SafeAreaView style={{ flex: 1 }}>
           <View style={styles.drawerHeader}>
+            <TouchableOpacity 
+              style={styles.closeBtn}
+              onPress={() => toggleDrawer(false)}
+            >
+              <X size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+
             <View style={styles.avatarContainer}>
                <Image source={require('../assets/icon.png')} style={styles.avatar} />
             </View>
             <Text style={styles.userName}>{user?.username || 'SKC Admin'}</Text>
-            <Text style={styles.userRole}>{user?.role?.toUpperCase() || 'MANAGER'}</Text>
+            <View style={styles.roleBadge}>
+              <Text style={styles.userRole}>{user?.role?.toUpperCase() || 'MANAGER'}</Text>
+            </View>
           </View>
 
           <View style={styles.drawerContent}>
@@ -97,8 +104,9 @@ const LayoutShell = React.memo(({ children, activeTab, onTabPress }: any) => {
                     toggleDrawer(false);
                     onTabPress(item.id);
                   }}
+                  activeOpacity={0.7}
                 >
-                  <Icon size={22} color={isActive ? Colors.primary : Colors.textSecondary} />
+                  <Icon size={20} color={isActive ? Colors.primary : Colors.textSecondary} strokeWidth={isActive ? 2.2 : 1.8} />
                   <Text style={[styles.menuText, isActive && styles.activeMenuText]}>{item.label}</Text>
                 </TouchableOpacity>
               );
@@ -107,18 +115,18 @@ const LayoutShell = React.memo(({ children, activeTab, onTabPress }: any) => {
 
           <View style={styles.drawerFooter}>
             <TouchableOpacity style={styles.logoutButton} onPress={() => { toggleDrawer(false); signOut(); }}>
-              <LogOut size={20} color={Colors.error} />
+              <LogOut size={18} color={Colors.error} />
               <Text style={styles.logoutText}>Sign Out</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
       </Animated.View>
 
-      {/* Trigger (Floating or Header integrated) */}
+      {/* Floating Menu Trigger */}
       {!isOpen && (
         <View style={styles.headerAccess}>
-           <TouchableOpacity onPress={() => toggleDrawer(true)} style={styles.menuTrigger}>
-              <Menu size={24} color={Colors.text} />
+           <TouchableOpacity onPress={() => toggleDrawer(true)} style={styles.menuTrigger} activeOpacity={0.8}>
+              <Menu size={22} color={Colors.text} strokeWidth={2} />
            </TouchableOpacity>
         </View>
       )}
@@ -129,21 +137,23 @@ const LayoutShell = React.memo(({ children, activeTab, onTabPress }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.background,
   },
   headerAccess: {
     position: 'absolute',
     top: 50,
-    left: 20,
+    left: 18,
     zIndex: 10,
   },
   menuTrigger: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: Radii.md,
     backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
     ...Shadows.small,
   },
   overlayArea: {
@@ -152,7 +162,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
   },
   drawer: {
     position: 'absolute',
@@ -162,78 +172,102 @@ const styles = StyleSheet.create({
     width: DRAWER_WIDTH,
     backgroundColor: Colors.white,
     zIndex: 101,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
     ...Shadows.medium,
   },
   drawerHeader: {
-    padding: 30,
+    paddingTop: 24,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.borderLight,
+    position: 'relative',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    padding: 6,
   },
   avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.surface,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.surfaceSubtle,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   avatar: {
-    width: 60,
-    height: 60,
+    width: 44,
+    height: 44,
     resizeMode: 'contain',
   },
   userName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  roleBadge: {
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
+    marginTop: 6,
   },
   userRole: {
-    fontSize: 12,
-    color: Colors.primary,
+    fontSize: 10,
+    color: Colors.primaryDark,
     fontWeight: '800',
-    marginTop: 4,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   drawerContent: {
     flex: 1,
-    paddingTop: 20,
-    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingHorizontal: 14,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 15,
-    borderRadius: 12,
-    marginBottom: 8,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
+    marginBottom: 4,
   },
   activeMenuItem: {
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: Colors.primaryLight,
   },
   menuText: {
-    fontSize: 15,
-    marginLeft: 15,
+    fontSize: 14,
+    marginLeft: 14,
     color: Colors.textSecondary,
     fontWeight: '500',
   },
   activeMenuText: {
-    color: Colors.primary,
+    color: Colors.primaryDark,
     fontWeight: '700',
   },
   drawerFooter: {
-    padding: 30,
+    padding: 20,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: Colors.borderLight,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.errorLight,
   },
   logoutText: {
-    fontSize: 16,
+    fontSize: 14,
     color: Colors.error,
     fontWeight: '600',
   },

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,17 +10,13 @@ import {
   Switch,
   TextInput,
   ScrollView,
-  Image,
-  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-const LOGO = require('../assets/icon.png');
 import * as Lucide from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useToast } from '../components/Toast';
-import { useGetMenuQuery, useUpdateMenuItemMutation } from '../services/menuApi';
+import { useGetMenuQuery, useUpdateMenuItemMutation, MenuItem as StockItem } from '../services/menuApi';
 import { exportMenuToPDF } from '../utils/pdfGenerator';
-import { MenuItem as StockItem } from '../services/menuApi';
 
 const CATEGORIES = ['ALL', 'LUNCH', 'SNACKS', 'BREAKFAST', 'RETAIL'];
 
@@ -29,7 +25,6 @@ const StockScreen = ({ navigation }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('ALL');
 
-  // New High-Performance Data Handling
   const { 
     data: stock = [], 
     isLoading, 
@@ -83,12 +78,12 @@ const StockScreen = ({ navigation }: any) => {
 
   const renderMenuItem = ({ item }: { item: StockItem }) => (
     <TouchableOpacity 
-      style={styles.itemCard}
+      style={[styles.itemCard, Shadows.small]}
       onPress={() => handleEdit(item)}
       activeOpacity={0.7}
     >
       <View style={styles.itemIconContainer}>
-        <Lucide.Layers size={20} color={item.isActive ? Colors.primary : Colors.textSecondary} />
+        <Lucide.Layers size={18} color={item.isActive ? Colors.primaryDark : Colors.textTertiary} />
       </View>
       <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.name}</Text>
@@ -100,10 +95,10 @@ const StockScreen = ({ navigation }: any) => {
         <Switch
           value={item.isActive}
           onValueChange={() => handleToggleStatus(item.id, item.isActive)}
-          trackColor={{ false: '#DEE2E6', true: Colors.primary + '40' }}
-          thumbColor={item.isActive ? Colors.primary : '#ADB5BD'}
+          trackColor={{ false: Colors.border, true: Colors.primaryLight }}
+          thumbColor={item.isActive ? Colors.primary : Colors.textTertiary}
         />
-        <Text style={[styles.statusLabel, { color: item.isActive ? Colors.success : Colors.textSecondary }]}>
+        <Text style={[styles.statusLabel, { color: item.isActive ? Colors.success : Colors.textTertiary }]}>
           {item.isActive ? 'LIVE' : 'OFF'}
         </Text>
       </View>
@@ -118,40 +113,43 @@ const StockScreen = ({ navigation }: any) => {
             <TouchableOpacity 
               onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}
               style={styles.backBtn}
+              activeOpacity={0.7}
             >
-              <Lucide.ArrowLeft size={24} color={Colors.text} />
+              <Lucide.ArrowLeft size={20} color={Colors.text} />
             </TouchableOpacity>
-            <View style={styles.logoContainer}>
-              <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title}>Menu & Stock</Text>
+              <Text style={styles.subtitle}>{stock.length} total items listed</Text>
             </View>
-            <Text style={styles.title}>Menu & Stock</Text>
             <TouchableOpacity 
               style={styles.addButton}
               onPress={handleAdd}
+              activeOpacity={0.8}
             >
-              <Lucide.Plus size={24} color={Colors.white} />
+              <Lucide.Plus size={18} color={Colors.white} />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.searchBox}>
-           <Lucide.Search size={18} color="#999" />
+           <Lucide.Search size={18} color={Colors.textTertiary} />
            <TextInput
               style={styles.searchInput}
-              placeholder="Search dishes..."
+              placeholder="Search dishes or items..."
               value={searchQuery}
               onChangeText={handleSearch}
-              placeholderTextColor="#999"
+              placeholderTextColor={Colors.textTertiary}
            />
-            <TouchableOpacity 
-              onPress={async () => {
-                const success = await exportMenuToPDF(stock);
-                if (!success) showToast('Failed to export menu', 'error');
-              }}
-              style={{ padding: 5 }}
-            >
-              <Lucide.FileDown size={20} color={Colors.primary} />
-            </TouchableOpacity>
+           <TouchableOpacity 
+             onPress={async () => {
+               const success = await exportMenuToPDF(stock);
+               if (!success) showToast('Failed to export menu', 'error');
+             }}
+             style={{ padding: 4 }}
+             activeOpacity={0.7}
+           >
+             <Lucide.FileDown size={18} color={Colors.primary} />
+           </TouchableOpacity>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll} contentContainerStyle={styles.catContent}>
@@ -160,6 +158,7 @@ const StockScreen = ({ navigation }: any) => {
               key={cat}
               style={[styles.catPill, activeCategory === cat && styles.activeCatPill]}
               onPress={() => handleCategoryChange(cat)}
+              activeOpacity={0.7}
             >
               <Text style={[styles.catText, activeCategory === cat && styles.activeCatText]}>
                 {cat}
@@ -189,8 +188,8 @@ const StockScreen = ({ navigation }: any) => {
           }
           ListEmptyComponent={
             <View style={styles.centerBox}>
-              <Lucide.ShoppingBag size={50} color="#DDD" />
-              <Text style={styles.emptyMsg}>No items found</Text>
+              <Lucide.ShoppingBag size={48} color={Colors.border} />
+              <Text style={styles.emptyMsg}>No menu items found</Text>
             </View>
           }
         />
@@ -202,57 +201,48 @@ const StockScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.background,
   },
   topSection: {
     backgroundColor: Colors.white,
-    paddingTop: 75,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    ...Shadows.medium,
-    zIndex: 5,
+    paddingTop: 52,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   header: {
-    paddingHorizontal: 25,
-    marginBottom: 20,
+    paddingHorizontal: 18,
+    marginBottom: 16,
   },
   titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  title: {
-    flex: 1,
-    fontSize: 28,
-    fontWeight: '900',
-    color: Colors.text,
-    letterSpacing: -0.5,
-    marginLeft: 10,
-  },
-  logoContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.small,
-    padding: 4,
-  },
-  headerLogo: {
-    width: '100%',
-    height: '100%',
   },
   backBtn: {
-    padding: 8,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    marginRight: 15,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
   },
   addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -261,113 +251,117 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 25,
-    paddingHorizontal: 15,
-    borderRadius: 15,
-    height: 50,
-    gap: 10,
-    marginBottom: 20,
+    backgroundColor: Colors.background,
+    marginHorizontal: 18,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
+    height: 44,
+    gap: 8,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     color: Colors.text,
-    fontWeight: '500',
   },
   catScroll: {
-    marginBottom: 20,
+    marginBottom: 14,
   },
   catContent: {
-    paddingHorizontal: 25,
-    gap: 10,
+    paddingHorizontal: 18,
+    gap: 8,
   },
   catPill: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   activeCatPill: {
     backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   catText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
   activeCatText: {
     color: Colors.white,
+    fontWeight: '700',
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 100,
+    padding: 18,
+    paddingBottom: 40,
   },
   itemCard: {
     flexDirection: 'row',
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: Radii.xl,
+    padding: 14,
+    marginBottom: 10,
     alignItems: 'center',
-    ...Shadows.small,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: Colors.border,
   },
   itemIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: '#F8FAFC',
+    width: 40,
+    height: 40,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.surfaceSubtle,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 12,
   },
   itemInfo: {
     flex: 1,
   },
   itemName: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: 2,
   },
   itemType: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '600',
     color: Colors.textSecondary,
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
+    backgroundColor: Colors.surfaceSubtle,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: Radii.sm,
     alignSelf: 'flex-start',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   itemPrice: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: Colors.primary,
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.primaryDark,
   },
   actionContainer: {
     alignItems: 'center',
-    marginLeft: 10,
-    gap: 4,
+    marginLeft: 8,
+    gap: 2,
   },
   statusLabel: {
-    fontSize: 10,
-    fontWeight: '900',
+    fontSize: 9,
+    fontWeight: '800',
   },
   centerBox: {
     flex: 1,
-    paddingVertical: 100,
+    paddingVertical: 60,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyMsg: {
-    marginTop: 15,
-    fontSize: 16,
-    color: '#CCC',
-    fontWeight: '700',
+    marginTop: 12,
+    fontSize: 13,
+    color: Colors.textTertiary,
+    fontWeight: '600',
   },
 });
 

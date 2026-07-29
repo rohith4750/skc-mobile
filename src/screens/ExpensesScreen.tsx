@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,15 +12,12 @@ import {
   Alert,
 } from 'react-native';
 import * as Lucide from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
-import api from '../services/api';
-
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useGetExpensesQuery } from '../services/adminApi';
 
 const ExpensesScreen = ({ navigation }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Performance Data Fetching
   const { 
     data: expenses = [], 
     isLoading, 
@@ -50,10 +47,10 @@ const ExpensesScreen = ({ navigation }: any) => {
   }, [expenses, searchQuery]);
 
   const renderExpenseItem = ({ item }: { item: any }) => (
-    <View style={styles.expenseCard}>
+    <View style={[styles.expenseCard, Shadows.small]}>
       <View style={styles.cardHeader}>
         <View style={styles.categoryBadge}>
-          <Lucide.Tag size={12} color={Colors.primary} />
+          <Lucide.Tag size={10} color={Colors.primaryDark} />
           <Text style={styles.categoryText}>{item.category?.toUpperCase()}</Text>
         </View>
         <Text style={styles.expenseDate}>{new Date(item.paymentDate).toLocaleDateString()}</Text>
@@ -61,19 +58,19 @@ const ExpensesScreen = ({ navigation }: any) => {
 
       <View style={styles.mainInfo}>
         <View style={styles.recipientRow}>
-          <Lucide.User size={16} color={Colors.textSecondary} />
-          <Text style={styles.recipientName}>{item.recipient || 'Anonymous'}</Text>
+          <Lucide.User size={14} color={Colors.textTertiary} />
+          <Text style={styles.recipientName}>{item.recipient || 'Standard Recipient'}</Text>
         </View>
-        <Text style={styles.description}>{item.description || 'No description'}</Text>
+        <Text style={styles.description}>{item.description || 'No description provided'}</Text>
       </View>
 
       <View style={styles.cardFooter}>
         <View style={styles.amountBox}>
-          <Text style={styles.amountLabel}>PAID AMOUNT</Text>
+          <Text style={styles.amountLabel}>AMOUNT PAID</Text>
           <Text style={styles.amountValue}>₹{item.amount?.toLocaleString()}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0' }]}>
-          <Text style={[styles.statusText, { color: item.paymentStatus === 'paid' ? '#2E7D32' : '#EF6C00' }]}>
+        <View style={[styles.statusBadge, { backgroundColor: item.paymentStatus === 'paid' ? Colors.successLight : Colors.warningLight }]}>
+          <Text style={[styles.statusText, { color: item.paymentStatus === 'paid' ? Colors.success : Colors.warning }]}>
             {item.paymentStatus?.toUpperCase() || 'PAID'}
           </Text>
         </View>
@@ -88,26 +85,31 @@ const ExpensesScreen = ({ navigation }: any) => {
           <TouchableOpacity 
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}
             style={styles.backBtn}
+            activeOpacity={0.7}
           >
-            <Lucide.ArrowLeft size={24} color={Colors.text} />
+            <Lucide.ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Expenses</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Expenses</Text>
+            <Text style={styles.subtitle}>{expenses.length} records logged</Text>
+          </View>
           <TouchableOpacity 
             style={styles.addButton}
             onPress={() => Alert.alert('Coming Soon', 'Expense creation is coming in the next update.')}
+            activeOpacity={0.8}
           >
-            <Lucide.Plus size={24} color={Colors.white} />
+            <Lucide.Plus size={18} color={Colors.white} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.searchContainer}>
-          <Lucide.Search size={18} color={Colors.textSecondary} />
+          <Lucide.Search size={18} color={Colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search category, recipient..."
             value={searchQuery}
             onChangeText={handleSearch}
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={Colors.textTertiary}
           />
         </View>
       </View>
@@ -122,17 +124,18 @@ const ExpensesScreen = ({ navigation }: any) => {
           renderItem={renderExpenseItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl 
               refreshing={isFetching} 
               onRefresh={onRefresh} 
-              colors={[Colors.primary]} 
+              tintColor={Colors.primary} 
             />
           }
           ListEmptyComponent={
             <View style={styles.centerContainer}>
               <Lucide.IndianRupee size={48} color={Colors.border} />
-              <Text style={styles.emptyText}>No expenses recorded</Text>
+              <Text style={styles.emptyText}>No expense records found</Text>
             </View>
           }
         />
@@ -144,44 +147,53 @@ const ExpensesScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: Colors.background,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 50,
+    paddingVertical: 60,
   },
   header: {
     backgroundColor: Colors.white,
-    paddingTop: 75,
+    paddingTop: 52,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     marginBottom: 16,
   },
   title: {
-    flex: 1,
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
     color: Colors.text,
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
   },
   backBtn: {
-    padding: 8,
-    backgroundColor: '#F1F3F5',
-    borderRadius: 12,
-    marginRight: 15,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   addButton: {
     backgroundColor: Colors.primary,
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.small,
@@ -189,101 +201,103 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F3F5',
-    marginHorizontal: 20,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    backgroundColor: Colors.background,
+    marginHorizontal: 18,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
     height: 44,
     marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
     fontSize: 14,
     color: Colors.text,
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 100,
+    padding: 18,
+    paddingBottom: 40,
   },
   expenseCard: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: Colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   categoryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: Colors.primaryLight,
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
   },
   categoryText: {
     fontSize: 10,
     fontWeight: '800',
-    color: Colors.primary,
+    color: Colors.primaryDark,
   },
   expenseDate: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '600',
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontWeight: '500',
   },
   mainInfo: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   recipientRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   recipientName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.text,
   },
   description: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
+    marginTop: 2,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#F1F3F5',
-    paddingTop: 12,
+    borderTopColor: Colors.borderLight,
+    paddingTop: 10,
   },
-  amountBox: {
-  },
+  amountBox: {},
   amountLabel: {
     fontSize: 9,
-    fontWeight: '800',
-    color: Colors.textSecondary,
+    fontWeight: '700',
+    color: Colors.textTertiary,
     letterSpacing: 0.5,
   },
   amountValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    color: Colors.primary,
+    color: Colors.primaryDark,
+    marginTop: 1,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
   },
   statusText: {
     fontSize: 10,
@@ -291,9 +305,9 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     marginTop: 12,
-    fontSize: 16,
-    color: Colors.textSecondary,
-    fontWeight: '500',
+    fontSize: 13,
+    color: Colors.textTertiary,
+    fontWeight: '600',
   },
 });
 

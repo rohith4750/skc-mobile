@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,14 +9,11 @@ import {
   RefreshControl,
   ScrollView,
   TextInput,
-  Image,
   Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-const LOGO = require('../assets/icon.png');
-import { Receipt, CreditCard, Clock, AlertTriangle, Search, ArrowLeft, Filter, Download, FileText, ChevronDown, ChevronUp } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Shadows } from '../theme/colors';
+import { Receipt, CreditCard, Clock, Search, ArrowLeft, Filter, Download, FileText } from 'lucide-react-native';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useToast } from '../components/Toast';
 import { useGetBillsQuery } from '../services/adminApi';
 import { shareOrderPdf } from '../utils/pdfSharing';
@@ -25,7 +22,6 @@ import { Bill } from '../types';
 const BillsScreen = ({ navigation }: any) => {
   const { showToast } = useToast();
   const [isFiltersVisible, setIsFiltersVisible] = useState(false);
-  // New High-Performance Data Fetching
   const { 
     data: bills = [], 
     isLoading, 
@@ -46,18 +42,15 @@ const BillsScreen = ({ navigation }: any) => {
 
   const filteredBills = useMemo(() => {
     return bills.filter(bill => {
-      // Status Filter
       const status = bill.status?.toUpperCase();
       let matchesStatus = true;
       if (filter === 'PAID') matchesStatus = status === 'PAID';
       else if (filter === 'UNPAID') matchesStatus = status === 'UNPAID' || status === 'PARTIAL';
 
-      // Date Filter (matches Web version logic)
       const billDate = new Date(bill.order?.eventDate || bill.createdAt);
       const matchesMonth = selectedMonth === 0 || (billDate.getMonth() + 1) === selectedMonth;
       const matchesYear = selectedYear === 0 || billDate.getFullYear() === selectedYear;
 
-      // Search Filter
       const customerName = bill.order?.customer?.name?.toLowerCase() || '';
       const phone = bill.order?.customer?.phone || '';
       const query = searchQuery.toLowerCase();
@@ -70,17 +63,16 @@ const BillsScreen = ({ navigation }: any) => {
   const financialStats = useMemo(() => {
     const total = filteredBills.reduce((acc, b) => acc + (Number(b.totalAmount || b.order?.totalAmount || 0)), 0);
     const paid = filteredBills.reduce((acc, b) => acc + (Number(b.paidAmount || 0)), 0);
-    // Calculate due as total - paid for perfect summary consistency
     const due = Math.max(0, total - paid);
     return { total, paid, due };
   }, [filteredBills]);
 
   const getStatusConfig = (status: string) => {
     switch (status?.toUpperCase()) {
-      case 'PAID': return { color: '#2E7D32', bg: '#E8F5E9' };
-      case 'PARTIAL': return { color: '#1565C0', bg: '#E3F2FD' };
-      case 'UNPAID': return { color: Colors.error, bg: Colors.error + '10' };
-      default: return { color: Colors.textSecondary, bg: '#F1F3F5' };
+      case 'PAID': return { color: Colors.success, bg: Colors.successLight };
+      case 'PARTIAL': return { color: Colors.info, bg: Colors.infoLight };
+      case 'UNPAID': return { color: Colors.error, bg: Colors.errorLight };
+      default: return { color: Colors.textSecondary, bg: Colors.surfaceSubtle };
     }
   };
 
@@ -88,7 +80,7 @@ const BillsScreen = ({ navigation }: any) => {
     const status = getStatusConfig(item.status);
     return (
       <TouchableOpacity 
-        style={styles.billCard} 
+        style={[styles.billCard, Shadows.small]} 
         activeOpacity={0.8}
         onPress={() => {
           if (item.order) {
@@ -117,7 +109,7 @@ const BillsScreen = ({ navigation }: any) => {
            </View>
            <View style={styles.finItem}>
               <Text style={styles.finLabel}>Paid</Text>
-               <Text style={[styles.finValue, { color: '#2E7D32' }]}>₹{Number(item.paidAmount || 0).toLocaleString('en-IN')}</Text>
+               <Text style={[styles.finValue, { color: Colors.success }]}>₹{Number(item.paidAmount || 0).toLocaleString('en-IN')}</Text>
            </View>
            <View style={styles.finItem}>
               <Text style={styles.finLabel}>Due</Text>
@@ -127,11 +119,11 @@ const BillsScreen = ({ navigation }: any) => {
 
         <View style={styles.cardFooter}>
            <View style={styles.footerInfo}>
-              <Clock size={12} color={Colors.textSecondary} />
+              <Clock size={12} color={Colors.textTertiary} />
               <Text style={styles.footerText}>
-                 {item.paymentHistory.length > 0 
+                 {item.paymentHistory && item.paymentHistory.length > 0 
                    ? `Updated ${new Date(item.paymentHistory[item.paymentHistory.length-1].date).toLocaleDateString()}`
-                   : 'Waiting for payment'}
+                   : 'Awaiting payment'}
               </Text>
            </View>
             <TouchableOpacity 
@@ -143,6 +135,7 @@ const BillsScreen = ({ navigation }: any) => {
                   showToast('Order details not available', 'error');
                 }
               }}
+              activeOpacity={0.7}
             >
               <Download size={14} color={Colors.primary} />
               <Text style={styles.actionBtnText}>PDF</Text>
@@ -159,52 +152,46 @@ const BillsScreen = ({ navigation }: any) => {
             <TouchableOpacity 
               onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}
               style={styles.backBtn}
+              activeOpacity={0.7}
             >
-              <ArrowLeft size={24} color={Colors.text} />
+              <ArrowLeft size={20} color={Colors.text} />
             </TouchableOpacity>
-            <View style={styles.logoContainer}>
-              <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
-            </View>
             <Text style={styles.title}>Financials</Text>
             <TouchableOpacity 
               style={[styles.filterToggle, isFiltersVisible && styles.filterToggleActive]} 
               onPress={() => setIsFiltersVisible(!isFiltersVisible)}
+              activeOpacity={0.7}
             >
-              <Filter size={20} color={isFiltersVisible ? Colors.white : Colors.textSecondary} />
+              <Filter size={18} color={isFiltersVisible ? Colors.white : Colors.textSecondary} />
             </TouchableOpacity>
         </View>
 
         <View style={styles.searchBar}>
-          <Search size={18} color={Colors.textSecondary} />
+          <Search size={18} color={Colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by customer or phone..."
+            placeholder="Search customer or phone..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholderTextColor="#999"
+            placeholderTextColor={Colors.textTertiary}
           />
         </View>
 
-        <View style={styles.premiumStatsCard}>
-           <LinearGradient
-             colors={[Colors.primary, Colors.primaryDark]}
-             start={{ x: 0, y: 0 }}
-             end={{ x: 1, y: 1 }}
-             style={styles.mainStatCard}
-           >
+        <View style={styles.statsCardGrid}>
+           <View style={[styles.mainStatCard, Shadows.small]}>
              <View style={styles.mainStatInfo}>
-               <Text style={styles.mainStatLabel}>Total Bill Amount</Text>
+               <Text style={styles.mainStatLabel}>Total Invoiced</Text>
                <Text style={styles.mainStatValue}>₹{financialStats.total.toLocaleString('en-IN')}</Text>
              </View>
-             <CreditCard size={32} color={Colors.white} style={{ opacity: 0.3 }} />
-           </LinearGradient>
+             <CreditCard size={28} color={Colors.primary} />
+           </View>
 
            <View style={styles.secondaryStatsRow}>
-             <View style={[styles.subStatCard, { borderLeftColor: '#2E7D32' }]}>
+             <View style={[styles.subStatCard, Shadows.small]}>
                <Text style={styles.subStatLabel}>Collected</Text>
-               <Text style={[styles.subStatValue, { color: '#2E7D32' }]}>₹{financialStats.paid.toLocaleString('en-IN')}</Text>
+               <Text style={[styles.subStatValue, { color: Colors.success }]}>₹{financialStats.paid.toLocaleString('en-IN')}</Text>
              </View>
-             <View style={[styles.subStatCard, { borderLeftColor: Colors.error }]}>
+             <View style={[styles.subStatCard, Shadows.small]}>
                <Text style={styles.subStatLabel}>Outstanding</Text>
                <Text style={[styles.subStatValue, { color: Colors.error }]}>₹{financialStats.due.toLocaleString('en-IN')}</Text>
              </View>
@@ -270,9 +257,10 @@ const BillsScreen = ({ navigation }: any) => {
                 const url = `https://www.skccaterers.in/api/bills/export?month=${selectedMonth}&year=${selectedYear}`;
                 Linking.openURL(url).catch(() => showToast('Failed to export', 'error'));
               }}
+              activeOpacity={0.8}
             >
-              <FileText size={18} color={Colors.white} />
-              <Text style={styles.monthlyDownloadText}>Download {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][selectedMonth-1]} Report</Text>
+              <FileText size={16} color={Colors.white} />
+              <Text style={styles.monthlyDownloadText}>Export Monthly Report</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -298,8 +286,8 @@ const BillsScreen = ({ navigation }: any) => {
           }
           ListEmptyComponent={
             <View style={styles.centerBox}>
-              <Receipt size={60} color="#EEE" />
-              <Text style={styles.emptyMsg}>No financial records yet</Text>
+              <Receipt size={48} color={Colors.border} />
+              <Text style={styles.emptyMsg}>No financial records found</Text>
             </View>
           }
         />
@@ -311,302 +299,277 @@ const BillsScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.background,
   },
   topSection: {
     backgroundColor: Colors.white,
-    paddingTop: 75,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    ...Shadows.medium,
-    zIndex: 5,
-    paddingBottom: 25,
+    paddingTop: 52,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingBottom: 16,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 25,
-    marginBottom: 25,
+    paddingHorizontal: 18,
+    marginBottom: 16,
   },
   backBtn: {
-    padding: 8,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    marginRight: 15,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   title: {
     flex: 1,
-    fontSize: 28,
-    fontWeight: '900',
+    fontSize: 22,
+    fontWeight: '800',
     color: Colors.text,
-    marginLeft: 10,
+    letterSpacing: -0.4,
   },
   filterToggle: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   filterToggleActive: {
     backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   collapsibleFilters: {
-    marginTop: 10,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 20,
-    paddingVertical: 15,
-    marginHorizontal: 15,
+    marginTop: 12,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.lg,
+    paddingVertical: 12,
+    marginHorizontal: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border,
   },
   monthlyDownloadBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    marginHorizontal: 20,
-    marginTop: 15,
-    marginBottom: 5,
-    paddingVertical: 12,
-    borderRadius: 15,
-    gap: 10,
+    marginHorizontal: 14,
+    marginTop: 10,
+    paddingVertical: 10,
+    borderRadius: Radii.md,
+    gap: 8,
     ...Shadows.small,
   },
   monthlyDownloadText: {
     color: Colors.white,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
   },
-  logoContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.small,
-    padding: 4,
-  },
-  headerLogo: {
-    width: '100%',
-    height: '100%',
-  },
-  premiumStatsCard: {
-    marginHorizontal: 25,
-    marginBottom: 25,
-    gap: 12,
+  statsCardGrid: {
+    marginHorizontal: 18,
+    gap: 10,
   },
   mainStatCard: {
-    padding: 24,
-    borderRadius: 24,
+    backgroundColor: Colors.secondary,
+    padding: 16,
+    borderRadius: Radii.xl,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    ...Shadows.medium,
   },
   mainStatInfo: {
     flex: 1,
   },
   mainStatLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: Colors.white,
-    opacity: 0.9,
+    color: Colors.textTertiary,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   mainStatValue: {
-    fontSize: 32,
-    fontWeight: '900',
+    fontSize: 24,
+    fontWeight: '800',
     color: Colors.white,
-    marginTop: 4,
+    marginTop: 2,
   },
   secondaryStatsRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   subStatCard: {
     flex: 1,
     backgroundColor: Colors.white,
-    padding: 16,
-    borderRadius: 20,
-    borderLeftWidth: 4,
-    ...Shadows.small,
+    padding: 12,
+    borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   subStatLabel: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '700',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
   },
   subStatValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    marginTop: 4,
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 2,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 25,
-    paddingHorizontal: 15,
-    borderRadius: 15,
-    height: 46,
-    gap: 10,
-    marginBottom: 20,
+    backgroundColor: Colors.background,
+    marginHorizontal: 18,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
+    height: 44,
+    gap: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
     color: Colors.text,
-    fontWeight: '600',
   },
   filterRow: {
-    paddingVertical: 5,
-    backgroundColor: Colors.white,
+    paddingVertical: 4,
   },
   secondaryFilterRow: {
-    paddingVertical: 10,
-    backgroundColor: Colors.white,
+    paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F5F5F5',
+    borderTopColor: Colors.borderLight,
   },
   filterScrollContent: {
-    paddingHorizontal: 25,
+    paddingHorizontal: 14,
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   monthTab: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#F9FAFB',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: Radii.pill,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   activeMonthTab: {
     backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   monthTabText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
   activeMonthTabText: {
     color: Colors.white,
+    fontWeight: '700',
   },
   yearPicker: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   pickerLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: Colors.textSecondary,
-    marginRight: 4,
   },
   miniTab: {
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
+    borderRadius: Radii.sm,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   activeMiniTab: {
-    backgroundColor: Colors.primary + '20',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
   miniTabText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
   activeMiniTabText: {
-    color: Colors.primary,
+    color: Colors.primaryDark,
+    fontWeight: '700',
   },
   filterTab: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: '#F3F4F6',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: Radii.pill,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   activeFilterTab: {
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
   filterText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '700',
     color: Colors.textSecondary,
   },
   activeFilterText: {
-    color: Colors.primary,
+    color: Colors.primaryDark,
   },
   vertDivider: {
     width: 1,
-    height: 15,
-    backgroundColor: '#EEE',
-    marginHorizontal: 5,
-  },
-  statBox: {
-    flex: 1,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#EEE',
-    marginHorizontal: 20,
-  },
-  statLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: Colors.textSecondary,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#2E7D32',
+    height: 14,
+    backgroundColor: Colors.border,
+    marginHorizontal: 4,
   },
   scrollArea: {
-    padding: 20,
-    paddingBottom: 100,
+    padding: 18,
+    paddingBottom: 40,
   },
   billCard: {
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 16,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   billHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
-  idBox: {
-  },
+  idBox: {},
   idLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    color: Colors.textSecondary,
-    letterSpacing: 1,
-    marginBottom: 2,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    letterSpacing: 0.5,
   },
   idValue: {
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '800',
     color: Colors.text,
+    marginTop: 1,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+    gap: 5,
   },
   statusDot: {
     width: 6,
@@ -614,16 +577,18 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   financialRow: {
     flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 15,
-    padding: 15,
-    marginBottom: 20,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   finItem: {
     flex: 1,
@@ -631,22 +596,22 @@ const styles = StyleSheet.create({
   },
   finLabel: {
     fontSize: 10,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: 4,
+    fontWeight: '600',
+    color: Colors.textTertiary,
+    marginBottom: 2,
   },
   finValue: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     color: Colors.text,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 15,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F5F5F5',
+    borderTopColor: Colors.borderLight,
   },
   footerInfo: {
     flexDirection: 'row',
@@ -654,35 +619,35 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   footerText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '600',
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontWeight: '500',
   },
   actionBtn: {
-    backgroundColor: Colors.primary + '10',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radii.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   actionBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Colors.primary,
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primaryDark,
   },
   centerBox: {
     flex: 1,
-    paddingVertical: 100,
+    paddingVertical: 60,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyMsg: {
-    marginTop: 15,
-    fontSize: 16,
-    color: '#DDD',
-    fontWeight: '700',
+    marginTop: 12,
+    fontSize: 13,
+    color: Colors.textTertiary,
+    fontWeight: '600',
   },
 });
 

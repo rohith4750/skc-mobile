@@ -7,24 +7,27 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { ArrowLeft, User, Phone, Calendar, Clock, MapPin, Receipt, CheckCircle, Package, Share2 } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
+import { ArrowLeft, User, Phone, Calendar, Clock, Package, Share2, CheckCircle, Edit3, Trash2 } from 'lucide-react-native';
+import { Colors, Shadows, Radii } from '../theme/colors';
 
-import { useGetOrderByIdQuery, useUpdateOrderStatusMutation } from '../services/orderApi';
-import { ActivityIndicator, Alert } from 'react-native';
+import { useGetOrderByIdQuery, useUpdateOrderStatusMutation, useDeleteOrderMutation } from '../services/orderApi';
+import { useToast } from '../components/Toast';
 import { shareOrderPdf } from '../utils/pdfSharing';
 
 const OrderDetailScreen = ({ route, navigation }: any) => {
+  const { showToast } = useToast();
   const { order: initialOrder } = route.params;
 
-  // Real-time fresh data
   const { 
     data: order = initialOrder, 
     isLoading 
   } = useGetOrderByIdQuery(initialOrder.id);
 
   const [updateStatus, { isLoading: isUpdating }] = useUpdateOrderStatusMutation();
+  const [deleteOrder, { isLoading: isDeleting }] = useDeleteOrderMutation();
 
   const handleSharePress = useCallback(() => {
     const isQuotation = order.status?.toLowerCase() === 'quotation';
@@ -48,31 +51,66 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     );
   }, [order]);
 
-  const handleProcess = useCallback(async () => {
+  const handleDeletePress = useCallback(() => {
+    Alert.alert(
+      'Delete Order',
+      `Are you sure you want to delete Order #${order.id.slice(-6).toUpperCase()}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              await deleteOrder(order.id).unwrap();
+              showToast('Order deleted successfully', 'success');
+              navigation.goBack();
+            } catch (err) {
+              Alert.alert('Error', 'Failed to delete order');
+            }
+          }
+        }
+      ]
+    );
+  }, [order, deleteOrder, navigation, showToast]);
+
+  const handleStatusChange = useCallback(async (newStatus: string) => {
     try {
-      // Toggle logic or next-state logic
-      const nextStatus = order.status === 'PENDING' ? 'CONFIRMED' : 
-                        order.status === 'CONFIRMED' ? 'DELIVERED' : 'DELIVERED';
-      
-      await updateStatus({ id: order.id, status: nextStatus }).unwrap();
-      Alert.alert('Success', `Order marked as ${nextStatus}`);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update order status');
+      await updateStatus({ id: order.id, status: newStatus }).unwrap();
+      showToast(`Order status updated to ${newStatus.replace('_', ' ').toUpperCase()}`, 'success');
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert('Error', error?.data?.error || error?.data?.details || 'Failed to update order status');
     }
-  }, [order, updateStatus]);
+  }, [order.id, updateStatus, showToast]);
+
+  const handleProcess = useCallback(() => {
+    Alert.alert(
+      'Update Order Status',
+      'Select a new status for this order:',
+      [
+        { text: 'Pending', onPress: () => handleStatusChange('pending') },
+        { text: 'In Progress', onPress: () => handleStatusChange('in_progress') },
+        { text: 'Completed', onPress: () => handleStatusChange('completed') },
+        { text: 'Quotation', onPress: () => handleStatusChange('quotation') },
+        { text: 'Cancel Order', style: 'destructive', onPress: () => handleStatusChange('cancelled') },
+        { text: 'Close', style: 'cancel' },
+      ]
+    );
+  }, [handleStatusChange]);
 
   const getStatusConfig = (status: string) => {
     const s = status?.toUpperCase();
     switch (s) {
       case 'COMPLETED':
-      case 'DELIVERED': return { color: '#2E7D32', bg: '#E8F5E9', label: 'COMPLETED' };
-      case 'PENDING': return { color: '#E65100', bg: '#FFF3E0', label: 'PENDING' };
-      case 'QUOTATION': return { color: '#1565C0', bg: '#E3F2FD', label: 'QUOTATION' };
+      case 'DELIVERED': return { color: Colors.success, bg: Colors.successLight, label: 'COMPLETED' };
+      case 'PENDING': return { color: Colors.warning, bg: Colors.warningLight, label: 'PENDING' };
+      case 'QUOTATION': return { color: Colors.info, bg: Colors.infoLight, label: 'QUOTATION' };
       case 'IN_PROGRESS':
       case 'IN PROGRESS':
-      case 'PREPARING': return { color: Colors.primary, bg: Colors.primary + '15', label: 'IN PROGRESS' };
-      case 'CANCELLED': return { color: Colors.error, bg: Colors.error + '15', label: 'CANCELLED' };
-      default: return { color: Colors.textSecondary, bg: '#F1F3F5', label: status };
+      case 'PREPARING': return { color: Colors.primaryDark, bg: Colors.primaryLight, label: 'IN PROGRESS' };
+      case 'CANCELLED': return { color: Colors.error, bg: Colors.errorLight, label: 'CANCELLED' };
+      default: return { color: Colors.textSecondary, bg: Colors.surfaceSubtle, label: status };
     }
   };
 
@@ -88,70 +126,87 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
       
-      {/* Hero Header */}
-      <View style={styles.heroHeader}>
-        <SafeAreaView>
+      {/* Top Header */}
+      <View style={styles.header}>
+        <SafeAreaView style={styles.safeHeader}>
           <View style={styles.headerTop}>
             <TouchableOpacity 
               onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')} 
-              style={styles.iconButton}
+              style={styles.backBtn}
+              activeOpacity={0.7}
             >
-              <ArrowLeft size={24} color={Colors.white} />
+              <ArrowLeft size={20} color={Colors.text} />
             </TouchableOpacity>
-            <Text style={styles.heroTitle}>ORDER DETAILS</Text>
-            <TouchableOpacity onPress={handleSharePress} style={styles.iconButton} activeOpacity={0.7}>
-              <Share2 size={22} color={Colors.white} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.heroMain}>
-             <Text style={styles.heroId}>#{order.id.slice(-8).toUpperCase()}</Text>
-             <View style={[styles.heroBadge, { backgroundColor: status.bg }]}>
-                <Text style={[styles.heroBadgeText, { color: status.color }]}>{status.label}</Text>
-             </View>
+            <Text style={styles.headerTitle}>Order #{order.id.slice(-6).toUpperCase()}</Text>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('NewOrder', { orderToEdit: order })} 
+                style={styles.editBtn} 
+                activeOpacity={0.7}
+              >
+                <Edit3 size={16} color={Colors.primaryDark} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDeletePress} style={styles.deleteBtn} activeOpacity={0.7}>
+                <Trash2 size={16} color={Colors.error} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSharePress} style={styles.shareBtn} activeOpacity={0.7}>
+                <Share2 size={16} color={Colors.primaryDark} />
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Timing Section */}
-        <View style={styles.timingRow}>
-           <View style={styles.timingItem}>
-              <Calendar size={18} color={Colors.primary} />
-              <Text style={styles.timingText}>{new Date(order.createdAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</Text>
+        {/* Status Card */}
+        <View style={[styles.statusCard, Shadows.small]}>
+           <View style={styles.statusRow}>
+              <View>
+                <Text style={styles.statusCardLabel}>STATUS</Text>
+                <Text style={[styles.statusCardValue, { color: status.color }]}>{status.label}</Text>
+              </View>
+              <View style={[styles.badgePill, { backgroundColor: status.bg }]}>
+                 <Text style={[styles.badgeText, { color: status.color }]}>{status.label}</Text>
+              </View>
            </View>
-           <View style={styles.timingItem}>
-              <Clock size={18} color={Colors.primary} />
-              <Text style={styles.timingText}>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+           <View style={styles.timingRow}>
+              <View style={styles.timingItem}>
+                 <Calendar size={14} color={Colors.textTertiary} />
+                 <Text style={styles.timingText}>{new Date(order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+              </View>
+              <View style={styles.timingItem}>
+                 <Clock size={14} color={Colors.textTertiary} />
+                 <Text style={styles.timingText}>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+              </View>
            </View>
         </View>
 
-        {/* Info Card */}
-        <View style={styles.card}>
+        {/* Customer Card */}
+        <View style={[styles.card, Shadows.small]}>
            <View style={styles.cardHeader}>
-              <User size={20} color={Colors.text} />
-              <Text style={styles.cardTitle}>Customer Details</Text>
+              <User size={18} color={Colors.primary} />
+              <Text style={styles.cardTitle}>Customer Information</Text>
            </View>
            <View style={styles.divider} />
            
-           <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>FULL NAME</Text>
+           <View style={styles.detailGroup}>
+              <Text style={styles.detailLabel}>NAME</Text>
               <Text style={styles.detailValue}>{order.customer?.name || 'Walk-in Customer'}</Text>
            </View>
            
-           <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>MOBILE NUMBER</Text>
+           <View style={styles.detailGroup}>
+              <Text style={styles.detailLabel}>PHONE</Text>
               <Text style={styles.detailValue}>{order.customer?.phone || 'Not Provided'}</Text>
            </View>
         </View>
 
         {/* Items Card */}
-        <View style={styles.card}>
+        <View style={[styles.card, Shadows.small]}>
            <View style={styles.cardHeader}>
-              <Package size={20} color={Colors.text} />
-              <Text style={styles.cardTitle}>Order Summary</Text>
+              <Package size={18} color={Colors.primary} />
+              <Text style={styles.cardTitle}>Order Items</Text>
            </View>
            <View style={styles.divider} />
            
@@ -159,40 +214,35 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
               <View key={index} style={styles.orderItem}>
                  <View style={styles.itemMain}>
                     <Text style={styles.itemName}>{item.menuItem?.name || item.name}</Text>
-                    <Text style={styles.itemMeta}>{item.quantity} units @ ₹{item.price}</Text>
+                    <Text style={styles.itemMeta}>{item.quantity} × ₹{item.price}</Text>
                  </View>
                  <Text style={styles.itemPrice}>₹{Number(item.quantity * item.price || 0).toLocaleString('en-IN')}</Text>
               </View>
            ))}
 
            <View style={styles.billBox}>
-              <View style={styles.billRow}>
-                 <Text style={styles.billLabel}>Order Subtotal</Text>
-                 <Text style={styles.billAmount}>₹{Number(order.totalAmount || 0).toLocaleString('en-IN')}</Text>
-              </View>
               <View style={styles.totalRow}>
-                 <Text style={styles.totalLabel}>TOTAL</Text>
+                 <Text style={styles.totalLabel}>Grand Total</Text>
                  <Text style={styles.totalAmount}>₹{Number(order.totalAmount || 0).toLocaleString('en-IN')}</Text>
               </View>
            </View>
         </View>
       </ScrollView>
 
-      {/* Action Bar */}
+      {/* Footer Action */}
       <SafeAreaView style={styles.footer}>
         <TouchableOpacity 
-          style={[styles.updateButton, order.status === 'DELIVERED' && { backgroundColor: Colors.success }]} 
+          style={styles.updateButton} 
           onPress={handleProcess}
-          disabled={isUpdating || order.status === 'DELIVERED'}
+          disabled={isUpdating}
+          activeOpacity={0.8}
         >
           {isUpdating ? (
-            <ActivityIndicator color={Colors.white} />
+            <ActivityIndicator color={Colors.white} size="small" />
           ) : (
             <>
-              <CheckCircle size={22} color={Colors.white} />
-              <Text style={styles.updateText}>
-                {order.status === 'DELIVERED' ? 'COMPLETED' : 'Update Status'}
-              </Text>
+              <CheckCircle size={18} color={Colors.white} />
+              <Text style={styles.updateText}>Update Order Status</Text>
             </>
           )}
         </TouchableOpacity>
@@ -204,215 +254,224 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.background,
   },
-  heroHeader: {
-    backgroundColor: Colors.primary,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    paddingBottom: 30,
-    ...Shadows.medium,
+  header: {
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  safeHeader: {
+    paddingTop: 48,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 75,
+    paddingHorizontal: 18,
+    paddingBottom: 14,
   },
-  iconButton: {
-    width: 44,
-    height: 44,
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  editBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heroTitle: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 2,
-  },
-  heroMain: {
+  deleteBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.errorLight,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
   },
-  heroId: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: Colors.white,
-    marginBottom: 10,
+  shareBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  heroBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  heroBadgeText: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1,
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: -0.3,
   },
   scrollContent: {
-    padding: 25,
-    paddingBottom: 120,
+    padding: 18,
+    paddingBottom: 100,
+  },
+  statusCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radii.xl,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statusCardLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    letterSpacing: 0.5,
+  },
+  statusCardValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  badgePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
   timingRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.white,
-    padding: 15,
-    borderRadius: 20,
-    marginBottom: 25,
-    ...Shadows.small,
+    gap: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
   },
   timingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   timingText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text,
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500',
   },
   card: {
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 25,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 15,
+    gap: 10,
+    marginBottom: 12,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: Colors.text,
-    letterSpacing: -0.2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-    marginBottom: 20,
-  },
-  detailRow: {
-    marginBottom: 20,
-  },
-  detailLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: Colors.textSecondary,
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  detailValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.text,
   },
-  locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  divider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+    marginBottom: 12,
+  },
+  detailGroup: {
+    marginBottom: 10,
+  },
+  detailLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
   },
   orderItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 15,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
   },
   itemMain: {
     flex: 1,
   },
   itemName: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '600',
     color: Colors.text,
   },
   itemMeta: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '600',
+    fontSize: 11,
+    color: Colors.textTertiary,
     marginTop: 2,
   },
   itemPrice: {
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '700',
     color: Colors.text,
   },
   billBox: {
-    marginTop: 10,
-    paddingTop: 20,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  billRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  billLabel: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  billAmount: {
-    fontSize: 14,
-    color: Colors.text,
-    fontWeight: '700',
+    borderTopColor: Colors.border,
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 15,
-    borderTopWidth: 2,
-    borderTopColor: '#F3F4F6',
-    borderStyle: 'dashed',
   },
   totalLabel: {
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '700',
     color: Colors.text,
   },
   totalAmount: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: Colors.primary,
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.primaryDark,
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: Colors.white,
-    padding: 20,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    ...Shadows.medium,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    padding: 16,
   },
   updateButton: {
     backgroundColor: Colors.primary,
-    height: 60,
-    borderRadius: 20,
+    height: 48,
+    borderRadius: Radii.md,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    ...Shadows.small,
   },
   updateText: {
     color: Colors.white,
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 

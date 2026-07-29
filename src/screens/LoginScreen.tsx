@@ -11,8 +11,8 @@ import {
   SafeAreaView,
   Image,
 } from 'react-native';
-import { User, Lock, ArrowRight } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
+import { User, Lock, ArrowRight, ShieldCheck, Eye, EyeOff } from 'lucide-react-native';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useAuth } from '../services/AuthContext';
 import { useToast } from '../components/Toast';
 
@@ -20,16 +20,13 @@ const LoginScreen = ({ navigation }: any) => {
   const { showToast } = useToast();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { signIn } = useAuth();
   const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotStep, setForgotStep] = useState(1); // 1: Email, 2: Code & New Password
   const [forgotEmail, setForgotEmail] = useState('');
-  const [resetCode, setResetCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
-  const [forgotSuccess, setForgotSuccess] = useState('');
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -38,28 +35,26 @@ const LoginScreen = ({ navigation }: any) => {
     }
 
     setLoading(true);
+    setError('');
     try {
       await signIn(username, password);
       showToast('Welcome back!', 'success');
     } catch (err) {
       showToast('Invalid credentials or network error', 'error');
+      setError('Invalid username or password');
     } finally {
       setLoading(false);
-      setError('An unexpected error occurred during sign in');
     }
   };
 
   const handleForgotPassword = async () => {
     if (!forgotEmail) {
-      setError('Please enter your email address');
+      showToast('Please enter your email address', 'error');
       return;
     }
 
     setForgotLoading(true);
-    setError('');
-    
     try {
-      // Step 1: Request the 6-digit code
       const response = await fetch('https://www.skccaterers.in/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -82,115 +77,148 @@ const LoginScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleResetPassword = async () => {
-    // This is now handled in ResetPasswordScreen.tsx
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-             <Image 
-                source={require('../assets/icon.png')}
-                style={styles.logo}
-                resizeMode="contain"
-             />
-          </View>
-          <Text style={styles.title}>SKC Caterers</Text>
-          <Text style={styles.subtitle}>Management Portal</Text>
-        </View>
-
-        <View style={styles.form}>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <View style={styles.inputContainer}>
-            <View style={styles.iconContainer}>
-              <User size={20} color={Colors.textSecondary} />
+        <View style={styles.contentContainer}>
+          {/* Header & Logo */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+               <Image 
+                  source={require('../assets/icon.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+               />
             </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Username"
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              placeholderTextColor={Colors.textSecondary}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <View style={styles.iconContainer}>
-              <Lock size={20} color={Colors.textSecondary} />
+            <Text style={styles.title}>SKC Caterers</Text>
+            <View style={styles.badgeContainer}>
+              <ShieldCheck size={14} color={Colors.primaryDark} />
+              <Text style={styles.badgeText}>MANAGEMENT PORTAL</Text>
             </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor={Colors.textSecondary}
-            />
           </View>
 
-          <TouchableOpacity 
-            onPress={() => setShowForgotModal(true)}
-            style={styles.forgotLink}
-          >
-            <Text style={styles.forgotLinkText}>Forgot Password?</Text>
-          </TouchableOpacity>
+          {/* Login Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Sign In</Text>
+            <Text style={styles.cardSub}>Access your manager dashboard</Text>
 
-          <TouchableOpacity
-            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={Colors.white} />
-            ) : (
-              <>
-                <Text style={styles.loginButtonText}>Sign In</Text>
-                <ArrowRight size={20} color={Colors.white} />
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+            {error ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
 
-        {/* Forgot Password Modal (Step 1 only) */}
-        {showForgotModal && (
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Reset Password</Text>
-              <Text style={styles.modalSub}>Enter your Gmail to receive a 6-digit code</Text>
-              
-              <TextInput
-                style={styles.modalInput}
-                placeholder="example@gmail.com"
-                value={forgotEmail}
-                onChangeText={setForgotEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              <View style={styles.modalActions}>
-                <TouchableOpacity onPress={() => setShowForgotModal(false)}>
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Username</Text>
+              <View style={styles.inputContainer}>
+                <User size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter username"
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+              </View>
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Password</Text>
                 <TouchableOpacity 
-                  style={styles.sendButton}
-                  onPress={handleForgotPassword}
-                  disabled={forgotLoading}
+                  onPress={() => setShowForgotModal(true)}
+                  activeOpacity={0.7}
                 >
-                  {forgotLoading ? <ActivityIndicator size="small" color={Colors.white} /> : <Text style={styles.sendText}>Get Code</Text>}
+                  <Text style={styles.forgotLinkText}>Forgot?</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.inputContainer}>
+                <Lock size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  placeholderTextColor={Colors.textTertiary}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeBtn}
+                  activeOpacity={0.7}
+                >
+                  {showPassword ? (
+                    <EyeOff size={18} color={Colors.primaryDark} />
+                  ) : (
+                    <Eye size={18} color={Colors.textTertiary} />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        )}
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>© 2024 Sri Vatsasa Koundinya Caterers</Text>
+            <TouchableOpacity
+              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color={Colors.white} size="small" />
+              ) : (
+                <>
+                  <Text style={styles.loginButtonText}>Sign In</Text>
+                  <ArrowRight size={18} color={Colors.white} />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Modal */}
+          {showForgotModal && (
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Reset Password</Text>
+                <Text style={styles.modalSub}>Enter your registered Gmail to receive a 6-digit verification code</Text>
+                
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="name@example.com"
+                  value={forgotEmail}
+                  onChangeText={setForgotEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.modalCancelBtn}
+                    onPress={() => setShowForgotModal(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalSubmitBtn, forgotLoading && styles.loginButtonDisabled]}
+                    onPress={handleForgotPassword}
+                    disabled={forgotLoading}
+                    activeOpacity={0.8}
+                  >
+                    {forgotLoading ? (
+                      <ActivityIndicator color={Colors.white} size="small" />
+                    ) : (
+                      <Text style={styles.modalSubmitText}>Send Code</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -200,172 +228,223 @@ const LoginScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.background,
   },
   keyboardView: {
     flex: 1,
-    paddingHorizontal: 24,
+  },
+  contentContainer: {
+    flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: 24,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 32,
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 24,
+    width: 72,
+    height: 72,
+    borderRadius: Radii.xl,
     backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    ...Shadows.small,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.medium,
   },
   logo: {
-    width: 90,
-    height: 90,
+    width: 48,
+    height: 48,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: Colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
   },
-  subtitle: {
-    fontSize: 16,
+  badgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+    marginTop: 8,
+    gap: 5,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.primaryDark,
+    letterSpacing: 0.8,
+  },
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: Radii.xl,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.medium,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  cardSub: {
+    fontSize: 13,
     color: Colors.textSecondary,
-    marginTop: 4,
+    marginTop: 2,
+    marginBottom: 20,
   },
-  form: {
-    width: '100%',
+  errorBanner: {
+    backgroundColor: Colors.errorLight,
+    borderRadius: Radii.md,
+    padding: 10,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.error + '20',
+  },
+  errorText: {
+    color: Colors.error,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  fieldGroup: {
+    marginBottom: 16,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 6,
+  },
+  forgotLinkText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primaryDark,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    marginBottom: 16,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
     borderColor: Colors.border,
+    paddingHorizontal: 12,
   },
-  iconContainer: {
-    padding: 12,
-    paddingRight: 8,
+  inputIcon: {
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    paddingVertical: 14,
-    paddingRight: 16,
-    fontSize: 16,
+    paddingVertical: 12,
+    fontSize: 15,
     color: Colors.text,
+  },
+  eyeBtn: {
+    padding: 6,
   },
   loginButton: {
     flexDirection: 'row',
     backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: Radii.md,
+    paddingVertical: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 8,
     gap: 8,
-    ...Shadows.medium,
+    ...Shadows.small,
   },
   loginButtonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   loginButtonText: {
     color: Colors.white,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  errorText: {
-    color: Colors.error,
-    marginBottom: 16,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  forgotLink: {
-    alignSelf: 'flex-end',
-    marginBottom: 8,
-  },
-  forgotLinkText: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
     justifyContent: 'center',
-    padding: 24,
+    padding: 20,
     zIndex: 1000,
   },
   modalContent: {
     backgroundColor: Colors.white,
-    borderRadius: 24,
+    borderRadius: Radii.xl,
     padding: 24,
-    ...Shadows.medium,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  modalSub: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 20,
-  },
-  modalInput: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
     borderWidth: 1,
     borderColor: Colors.border,
+    ...Shadows.large,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  modalSub: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  modalInput: {
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: Colors.text,
     marginBottom: 20,
   },
   modalActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 20,
+    gap: 12,
   },
-  cancelText: {
-    fontSize: 16,
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalCancelText: {
     color: Colors.textSecondary,
     fontWeight: '600',
+    fontSize: 14,
   },
-  sendButton: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 24,
+  modalSubmitBtn: {
+    flex: 1,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.small,
   },
-  sendText: {
+  modalSubmitText: {
     color: Colors.white,
-    fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 14,
   },
-  successText: {
-    color: Colors.success,
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingVertical: 20,
-  }
 });
 
 export default LoginScreen;

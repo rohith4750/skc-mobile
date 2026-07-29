@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   Dimensions,
   ActivityIndicator,
   RefreshControl,
-  InteractionManager,
   Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,186 +19,260 @@ import {
   Clock,
   ChevronRight,
   ArrowUpRight,
-  Calendar,
   Wallet,
   Activity,
-  AlertTriangle,
-  Truck
+  Truck,
+  Edit3
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Shadows } from '../theme/colors';
-import Constants from 'expo-constants';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useGetMobileDashboardQuery } from '../services/dashboardApi';
-import { apiSlice } from '../services/apiSlice';
+import { useGetOrdersQuery } from '../services/orderApi';
 import { useAuth } from '../services/AuthContext';
 import * as RBAC from '../utils/rbac';
 
 const { width } = Dimensions.get('window');
 
-const StatCard = ({ title, value, icon: Icon, color, subValue, isLoading }: any) => (
+const StatCard = ({ title, value, subValue, icon: Icon, color, isLoading }: any) => (
   <View style={[styles.statCard, Shadows.small]}>
-    <LinearGradient
-      colors={[color + '20', color + '05']}
-      style={styles.iconContainer}
-    >
-      <Icon size={20} color={color} />
-    </LinearGradient>
-    <View style={styles.statInfo}>
-      <Text style={styles.statTitle}>{title}</Text>
-      {isLoading ? (
-        <ActivityIndicator size="small" color={color} style={{ alignSelf: 'flex-start', marginTop: 5 }} />
-      ) : (
-        <Text style={styles.statValue}>{value}</Text>
+    <View style={styles.statHeader}>
+      <View style={[styles.iconBadge, { backgroundColor: color + '15' }]}>
+        <Icon size={18} color={color} strokeWidth={2} />
+      </View>
+      {subValue && (
+        <View style={styles.subBadge}>
+          <Text style={styles.subBadgeText}>{subValue}</Text>
+        </View>
       )}
-      {subValue && !isLoading && <Text style={styles.statSubValue}>{subValue}</Text>}
     </View>
+    <Text style={styles.statTitle}>{title}</Text>
+    {isLoading ? (
+      <ActivityIndicator size="small" color={color} style={styles.loader} />
+    ) : (
+      <Text style={styles.statValue}>{value}</Text>
+    )}
   </View>
 );
 
 const QuickAction = ({ title, icon: Icon, color, onPress }: any) => (
-  <TouchableOpacity
-    style={[styles.quickAction, Shadows.small]}
+  <TouchableOpacity 
+    style={[styles.actionCard, Shadows.small]} 
     onPress={onPress}
     activeOpacity={0.7}
   >
-    <View style={[styles.actionIcon, { backgroundColor: color }]}>
-      <Icon size={24} color={Colors.white} />
+    <View style={[styles.actionIconContainer, { backgroundColor: color + '15' }]}>
+      <Icon size={20} color={color} strokeWidth={2} />
     </View>
-    <Text style={styles.actionTitle}>{title}</Text>
+    <Text style={styles.actionTitle} numberOfLines={1}>{title}</Text>
   </TouchableOpacity>
 );
 
 const HomeScreen = ({ navigation }: any) => {
   const { user } = useAuth();
-  const isAdmin = ['admin', 'superadmin'].includes(user?.role?.toLowerCase() || '');
+  const [timeframe, setTimeframe] = useState<'today' | 'month' | 'all'>('today');
 
-  // High-performance single dashboard call
   const { 
-    data, 
-    isLoading, 
-    isFetching, 
-    error,
-    refetch 
+    data: dashboardData, 
+    isLoading: loadingDashboard, 
+    isFetching: fetchingDashboard, 
+    refetch: refetchDashboard 
   } = useGetMobileDashboardQuery(undefined, {
-    pollingInterval: 30000, // Refresh every 30 seconds
+    refetchOnMountOrArgChange: true
   });
 
-  const onRefresh = React.useCallback(() => {
-    refetch();
-  }, [refetch]);
+  const { data: allOrders = [], refetch: refetchOrders } = useGetOrdersQuery(undefined, {
+    refetchOnMountOrArgChange: true
+  });
 
-  const stats = data?.stats;
-  const recentOrders = data?.recentOrders || [];
+  const onRefresh = () => {
+    refetchDashboard();
+    refetchOrders();
+  };
 
-  // SMART COUNTING: Improved date parsing
-  const todayOrdersFromList = React.useMemo(() => {
-    try {
-      const today = new Date().toDateString();
-      return recentOrders.filter((o: any) => {
-        if (!o.createdAt) return false;
-        const orderDate = new Date(o.createdAt).toDateString();
-        return orderDate === today;
-      }).length;
-    } catch (e) {
-      return 0;
+  const stats = (dashboardData as any)?.data?.overview || (dashboardData as any)?.overview;
+  const recentOrders = (dashboardData as any)?.data?.recentOrders || (dashboardData as any)?.recentOrders;
+
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  });
+
+  const displayTodayOrders = stats?.todayOrders !== undefined ? stats.todayOrders : (stats?.activeOrders || 0);
+
+  // Month-level calculations
+  const monthStats = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const currentMonthOrders = allOrders.filter((o: any) => {
+      if (o.status === 'cancelled') return false;
+      const dateVal = o.eventDate || o.createdAt;
+      if (!dateVal) return false;
+      const d = new Date(dateVal);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+
+    let monthTotalAmount = 0;
+    let monthCollected = 0;
+    let monthPending = 0;
+
+    currentMonthOrders.forEach((o: any) => {
+      const total = Number(o.totalAmount || 0);
+      const advance = Number(o.advancePaid || 0);
+      const remaining = Number(o.remainingAmount || Math.max(0, total - advance));
+
+      monthTotalAmount += total;
+      monthCollected += advance;
+      monthPending += remaining;
+    });
+
+    return {
+      totalAmount: monthTotalAmount,
+      collected: monthCollected,
+      pending: monthPending,
+      count: currentMonthOrders.length,
+    };
+  }, [allOrders]);
+
+  // All time calculations
+  const allTimeStats = useMemo(() => {
+    let totalAmount = 0;
+    let collected = 0;
+    let pending = 0;
+
+    allOrders.forEach((o: any) => {
+      if (o.status === 'cancelled') return;
+      const total = Number(o.totalAmount || 0);
+      const advance = Number(o.advancePaid || 0);
+      const remaining = Number(o.remainingAmount || Math.max(0, total - advance));
+
+      totalAmount += total;
+      collected += advance;
+      pending += remaining;
+    });
+
+    return {
+      totalAmount,
+      collected,
+      pending,
+      count: allOrders.length,
+    };
+  }, [allOrders]);
+
+  // Dynamic values depending on selected timeframe
+  const activeHeroData = useMemo(() => {
+    if (timeframe === 'month') {
+      return {
+        label: "THIS MONTH'S REVENUE",
+        totalAmount: monthStats.totalAmount,
+        ordersCount: monthStats.count,
+        collected: monthStats.collected,
+        pending: monthStats.pending,
+        ordersLabel: "Month Orders",
+      };
+    } else if (timeframe === 'all') {
+      return {
+        label: "ALL TIME REVENUE",
+        totalAmount: allTimeStats.totalAmount,
+        ordersCount: allTimeStats.count,
+        collected: allTimeStats.collected,
+        pending: allTimeStats.pending,
+        ordersLabel: "Total Orders",
+      };
+    } else {
+      return {
+        label: "TODAY'S REVENUE",
+        totalAmount: stats?.todayTotalAmount || 0,
+        ordersCount: displayTodayOrders,
+        collected: stats?.todayRevenue || 0,
+        pending: stats?.todayPendingAmount || 0,
+        ordersLabel: "Today's Orders",
+      };
     }
-  }, [recentOrders]);
-
-  const displayTodayOrders = (stats?.todayOrders && stats.todayOrders > 0) ? stats.todayOrders : todayOrdersFromList;
-
-  // Debugging order visibility
-  React.useEffect(() => {
-    if (data) {
-      console.log('📊 Dashboard Data Received:', {
-        serverStatsCount: stats?.todayOrders,
-        computedTodayCount: todayOrdersFromList,
-        recentOrdersCount: recentOrders.length,
-        userRole: user?.role
-      });
-    }
-  }, [data, todayOrdersFromList, user]);
-
-  if (isLoading && !data) {
-    return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-         <ActivityIndicator size="large" color={Colors.primary} />
-         <Text style={{ marginTop: 20, color: Colors.textSecondary }}>Loading dashboard...</Text>
-      </SafeAreaView>
-    );
-  }
-
-  if (error || (!isLoading && !data)) {
-    const isAuthError = (error as any)?.status === 401;
-    const status = (error as any)?.status;
-    const errorMsg = (error as any)?.data?.error || (error as any)?.message || 'Check if server is live';
-    
-    return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 30 }]}>
-         <AlertTriangle size={60} color={Colors.error} />
-         <Text style={[styles.sectionTitle, { textAlign: 'center', marginTop: 20 }]}>
-           {isAuthError ? 'Session Expired' : 'Server Connection Error'}
-         </Text>
-         <Text style={{ textAlign: 'center', color: Colors.textSecondary, marginTop: 10, marginBottom: 10 }}>
-           {isAuthError 
-             ? 'Your session has ended due to an environment switch.' 
-             : `Technical Details: Status ${status}\n${errorMsg}`}
-         </Text>
-         <Text style={{ textAlign: 'center', color: Colors.textTertiary, fontSize: 10, marginBottom: 30 }}>
-            URL: https://www.skccaterers.in/api/mobile/dashboard
-         </Text>
-         <TouchableOpacity 
-            style={{ backgroundColor: Colors.primary, paddingHorizontal: 30, paddingVertical: 15, borderRadius: 15 }} 
-            onPress={isAuthError ? () => navigation.navigate('MoreStack') : onRefresh}
-         >
-            <Text style={{ color: Colors.white, fontWeight: '700' }}>
-               {isAuthError ? 'Go to Login' : 'Try Again'}
-            </Text>
-         </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
+  }, [timeframe, stats, displayTodayOrders, monthStats, allTimeStats]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={onRefresh} tintColor={Colors.primary} />
+          <RefreshControl
+            refreshing={fetchingDashboard}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+          />
         }
       >
-        {/* Header */}
+        {/* Custom Header Bar */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Hello, {user?.username || 'Rohith'}</Text>
-            <Text style={styles.subGreeting}>Here's what's happening today</Text>
+          <View style={styles.headerLeft}>
+            <View style={styles.logoBadge}>
+               <Image source={LOGO} style={styles.headerLogo} />
+            </View>
+            <View>
+              <Text style={styles.greeting}>Welcome back,</Text>
+              <Text style={styles.userName}>{user?.username || 'Manager'}</Text>
+            </View>
           </View>
-          <TouchableOpacity style={styles.logoButton} onPress={() => navigation.navigate('MoreStack')}>
-            <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+             <View style={styles.dateChip}>
+                <Clock size={12} color={Colors.textSecondary} />
+                <Text style={styles.dateText}>{today}</Text>
+             </View>
+          </View>
         </View>
 
-        {/* Hero Section - Role Specific Summary */}
+        {/* Hero Revenue Banner with Timeframe Filter */}
         <LinearGradient
-          colors={[Colors.primary, Colors.primaryDark]}
+          colors={['#0F172A', '#1E293B']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.heroCard, Shadows.medium]}
         >
+          {/* Timeframe Filter Selector */}
+          <View style={styles.timeframeRow}>
+            <TouchableOpacity 
+              style={[styles.timeframeChip, timeframe === 'today' && styles.timeframeChipActive]}
+              onPress={() => setTimeframe('today')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.timeframeText, timeframe === 'today' && styles.timeframeTextActive]}>Today</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.timeframeChip, timeframe === 'month' && styles.timeframeChipActive]}
+              onPress={() => setTimeframe('month')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.timeframeText, timeframe === 'month' && styles.timeframeTextActive]}>This Month</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.timeframeChip, timeframe === 'all' && styles.timeframeChipActive]}
+              onPress={() => setTimeframe('all')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.timeframeText, timeframe === 'all' && styles.timeframeTextActive]}>All Time</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.heroTop}>
             <View>
-              <Text style={styles.heroLabel}>
-                {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) ? "Today's Sales" : "Active Logistics"}
+              <Text style={styles.heroSubtitle}>
+                {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) ? activeHeroData.label : "OPERATIONS OVERVIEW"}
               </Text>
-              <Text style={styles.heroValue}>
+              <Text style={styles.heroTitle}>
                 {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) 
-                  ? (isLoading ? '...' : `₹${Number(stats?.todayTotalAmount || 0).toLocaleString('en-IN')}`)
+                  ? (loadingDashboard ? '...' : `₹${Number(activeHeroData.totalAmount).toLocaleString('en-IN')}`)
                   : "Tracking Live"}
               </Text>
             </View>
             <View style={styles.trendBadge}>
-              <Activity size={14} color={Colors.success} />
-              <Text style={styles.trendText}>Live</Text>
+              <Activity size={12} color={Colors.success} />
+              <Text style={styles.trendText}>Live Update</Text>
             </View>
           </View>
           
@@ -207,43 +280,38 @@ const HomeScreen = ({ navigation }: any) => {
           
           <View style={styles.heroBottom}>
             <View style={styles.heroStatItem}>
-              <ShoppingBag size={12} color={Colors.white} style={{ opacity: 0.7 }} />
-              <Text style={styles.heroStatLabel}>Today's Orders</Text>
-              <Text style={styles.heroStatText}>{isLoading ? '...' : displayTodayOrders}</Text>
+              <Text style={styles.heroStatLabel}>{activeHeroData.ordersLabel}</Text>
+              <Text style={styles.heroStatText}>{loadingDashboard ? '...' : activeHeroData.ordersCount}</Text>
             </View>
             
             {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) ? (
               <>
                 <View style={styles.heroStatItem}>
-                  <Wallet size={12} color={Colors.white} style={{ opacity: 0.7 }} />
-                  <Text style={styles.heroStatLabel}>Revenue</Text>
-                  <Text style={styles.heroStatText}>₹{isLoading ? '...' : Number(stats?.todayRevenue || 0).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.heroStatLabel}>Collected</Text>
+                  <Text style={styles.heroStatText}>₹{loadingDashboard ? '...' : Number(activeHeroData.collected).toLocaleString('en-IN')}</Text>
                 </View>
                 <View style={styles.heroStatItem}>
-                  <Clock size={12} color={Colors.white} style={{ opacity: 0.7 }} />
                   <Text style={styles.heroStatLabel}>Pending</Text>
-                  <Text style={styles.heroStatText}>₹{isLoading ? '...' : Number(stats?.todayPendingAmount || 0).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.heroStatText}>₹{loadingDashboard ? '...' : Number(activeHeroData.pending).toLocaleString('en-IN')}</Text>
                 </View>
               </>
             ) : (
               <>
                 <View style={styles.heroStatItem}>
-                  <Truck size={12} color={Colors.white} style={{ opacity: 0.7 }} />
                   <Text style={styles.heroStatLabel}>On Duty</Text>
-                  <Text style={styles.heroStatText}>{isLoading ? '...' : stats?.activeOrders || 0}</Text>
+                  <Text style={styles.heroStatText}>{loadingDashboard ? '...' : stats?.activeOrders || 0}</Text>
                 </View>
                 <View style={styles.heroStatItem}>
-                  <Users size={12} color={Colors.white} style={{ opacity: 0.7 }} />
-                  <Text style={styles.heroStatLabel}>Workforce</Text>
-                  <Text style={styles.heroStatText}>{isLoading ? '...' : stats?.customers || 0}</Text>
+                  <Text style={styles.heroStatLabel}>Clients</Text>
+                  <Text style={styles.heroStatText}>{loadingDashboard ? '...' : stats?.customers || 0}</Text>
                 </View>
               </>
             )}
           </View>
         </LinearGradient>
 
-        {/* Stats Grid */}
-        <Text style={styles.sectionTitle}>Dashboard Overview</Text>
+        {/* Overview Stats */}
+        <Text style={styles.sectionTitle}>Overview</Text>
         <View style={styles.statsGrid}>
           {RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_CUSTOMERS) && (
             <StatCard
@@ -251,36 +319,36 @@ const HomeScreen = ({ navigation }: any) => {
               value={stats?.customers?.toString() || '0'}
               icon={Users}
               color={Colors.info}
-              isLoading={isLoading}
+              isLoading={loadingDashboard}
             />
           )}
           
           <StatCard
-            title={RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_MENU_STOCK) ? "Menu Items" : "Delivery Personnel"}
+            title={RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_MENU_STOCK) ? "Menu Items" : "Delivery Staff"}
             value={(stats?.menuItems || stats?.stock || 0).toString()}
             icon={ShoppingBag}
             color={Colors.success}
-            isLoading={isLoading}
+            isLoading={loadingDashboard}
           />
 
           {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) && (
             <StatCard
-              title="Outstanding Bills"
+              title="Pending Bills"
               value={`₹${((stats?.outstanding || 0) / 1000).toFixed(1)}k`}
               icon={Wallet}
               color={Colors.error}
-              subValue="Pending payments"
-              isLoading={isLoading}
+              subValue="Unpaid invoices"
+              isLoading={loadingDashboard}
             />
           )}
 
           <StatCard
-            title="Active Operations"
+            title="Active Orders"
             value={stats?.activeOrders?.toString() || '0'}
             icon={Activity}
             color={Colors.warning}
-            subValue="Orders in progress"
-            isLoading={isLoading}
+            subValue="In progress"
+            isLoading={loadingDashboard}
           />
         </View>
 
@@ -319,59 +387,71 @@ const HomeScreen = ({ navigation }: any) => {
           />
         </View>
 
-        {/* Upcoming Orders Section */}
+        {/* Recent Orders Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Orders</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Orders')}>
+          <TouchableOpacity onPress={() => navigation.navigate('Orders')} activeOpacity={0.7}>
             <Text style={styles.viewAll}>View All</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Recent Orders List - Displayed for everyone to ensure visibility */}
         {(recentOrders && recentOrders.length > 0) ? (
           recentOrders.map((order: any) => {
-            const statusColors: any = {
-              'COMPLETED': Colors.success,
-              'DELIVERED': Colors.success,
-              'PENDING': Colors.warning,
-              'QUOTATION': Colors.info,
-              'IN PROGRESS': Colors.primary,
-              'IN_PROGRESS': Colors.primary,
-              'CANCELLED': Colors.error,
+            const statusConfig: any = {
+              'COMPLETED': { bg: Colors.successLight, text: Colors.success },
+              'DELIVERED': { bg: Colors.successLight, text: Colors.success },
+              'PENDING': { bg: Colors.warningLight, text: Colors.warning },
+              'QUOTATION': { bg: Colors.infoLight, text: Colors.info },
+              'IN PROGRESS': { bg: Colors.primaryLight, text: Colors.primaryDark },
+              'IN_PROGRESS': { bg: Colors.primaryLight, text: Colors.primaryDark },
+              'CANCELLED': { bg: Colors.errorLight, text: Colors.error },
             };
             const s = order.status?.toUpperCase() || 'PENDING';
-            const statusColor = statusColors[s] || Colors.textSecondary;
+            const st = statusConfig[s] || { bg: Colors.surfaceSubtle, text: Colors.textSecondary };
 
             return (
               <TouchableOpacity
                 key={order.id || order._id || Math.random().toString()}
                 style={[styles.orderItem, Shadows.small]}
                 onPress={() => navigation.navigate('Orders', { screen: 'OrderDetail', params: { order } })}
+                activeOpacity={0.7}
               >
                 <View style={styles.orderInfo}>
                   <Text style={styles.customerName}>{order.customer?.name || 'Standard Order'}</Text>
                   <Text style={styles.orderMeta}>
-                    {order.items?.length || 0} Items · {order.address || 'Delivery'}
+                    {order.items?.length || 0} items · {order.address || 'Standard Delivery'}
                   </Text>
                 </View>
                 <View style={styles.orderRight}>
                   <Text style={styles.orderAmount}>₹{Number(order.totalAmount || 0).toLocaleString('en-IN')}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
-                    <Text style={[styles.statusText, { color: statusColor }]}>{order.status || 'Pending'}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                    <View style={[styles.statusBadge, { backgroundColor: st.bg }]}>
+                      <Text style={[styles.statusText, { color: st.text }]}>{order.status || 'Pending'}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        navigation.navigate('Orders', { screen: 'NewOrder', params: { orderToEdit: order } });
+                      }}
+                      style={styles.editIconBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Edit3 size={13} color={Colors.primaryDark} />
+                    </TouchableOpacity>
                   </View>
                 </View>
-                <ChevronRight size={18} color={Colors.textTertiary} style={styles.chevron} />
+                <ChevronRight size={16} color={Colors.textTertiary} />
               </TouchableOpacity>
             );
           })
-        ) : !isLoading ? (
+        ) : !loadingDashboard ? (
           <View style={styles.emptyContainer}>
-            <ShoppingBag size={40} color={Colors.textTertiary} opacity={0.5} />
-            <Text style={styles.emptyText}>No recent orders yet</Text>
+            <ShoppingBag size={32} color={Colors.border} />
+            <Text style={styles.emptyText}>No recent orders recorded</Text>
           </View>
         ) : null}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 30 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -383,170 +463,243 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 20,
+    paddingHorizontal: 18,
+    paddingTop: 8,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 25,
-    paddingTop: 75,
+    marginBottom: 20,
+    marginTop: 52,
   },
-  greeting: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.text,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  subGreeting: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  logoButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  logoBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: Radii.md,
     backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
     ...Shadows.small,
-    padding: 6,
   },
   headerLogo: {
-    width: '100%',
-    height: '100%',
+    width: 28,
+    height: 28,
+    resizeMode: 'contain',
+  },
+  greeting: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.white,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  dateText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
   heroCard: {
-    backgroundColor: Colors.primary,
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 30,
+    borderRadius: Radii.xl,
+    padding: 18,
+    marginBottom: 24,
+  },
+  timeframeRow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: Radii.pill,
+    padding: 3,
+    marginBottom: 14,
+    gap: 4,
+  },
+  timeframeChip: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderRadius: Radii.pill,
+  },
+  timeframeChipActive: {
+    backgroundColor: Colors.white,
+  },
+  timeframeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  timeframeTextActive: {
+    color: '#0F172A',
+    fontWeight: '800',
   },
   heroTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  heroLabel: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  heroValue: {
-    color: Colors.white,
-    fontSize: 32,
+  heroSubtitle: {
+    fontSize: 10,
     fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.8,
+  },
+  heroTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: Colors.white,
     marginTop: 4,
+    letterSpacing: -0.5,
   },
   trendBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    gap: 4,
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
   },
   trendText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
     color: Colors.success,
-    marginLeft: 4,
+    fontWeight: '700',
   },
   heroDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginVertical: 20,
+    backgroundColor: 'rgba(226, 232, 240, 0.1)',
+    marginVertical: 14,
   },
   heroBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
-    gap: 10,
   },
-  heroStatItem: {
-    flex: 1,
-    gap: 4,
-  },
+  heroStatItem: {},
   heroStatLabel: {
-    fontSize: 10,
-    color: Colors.white,
-    opacity: 0.8,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   heroStatText: {
-    fontSize: 13,
-    color: Colors.white,
-    fontWeight: '800',
-  },
-  sectionTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 16,
+    color: Colors.white,
+    marginTop: 2,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 16,
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: -0.2,
+    marginBottom: 12,
   },
   viewAll: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primaryDark,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 30,
+    marginBottom: 24,
   },
   statCard: {
-    width: (width - 52) / 2,
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: 16,
+    flex: 1,
+    minWidth: (width - 48) / 2,
+    backgroundColor: Colors.white,
+    borderRadius: Radii.xl,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  iconContainer: {
+  statHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  iconBadge: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: Radii.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  statInfo: {},
+  subBadge: {
+    backgroundColor: Colors.surfaceSubtle,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radii.sm,
+  },
+  subBadgeText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
   statTitle: {
     fontSize: 12,
-    color: Colors.textSecondary,
     fontWeight: '600',
+    color: Colors.textSecondary,
   },
   statValue: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: Colors.text,
     marginTop: 2,
   },
-  statSubValue: {
-    fontSize: 10,
-    color: Colors.textTertiary,
-    marginTop: 4,
+  loader: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
   },
   actionsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 30,
+    gap: 12,
+    marginBottom: 24,
   },
-  quickAction: {
-    width: (width - 80) / 4,
+  actionCard: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderRadius: Radii.lg,
+    padding: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  actionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
+  actionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.md,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
@@ -558,65 +711,70 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   orderItem: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: Colors.white,
+    borderRadius: Radii.lg,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   orderInfo: {
     flex: 1,
   },
   customerName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.text,
+    letterSpacing: -0.2,
   },
   orderMeta: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 4,
+    marginTop: 2,
   },
   orderRight: {
     alignItems: 'flex-end',
     marginRight: 10,
   },
   orderAmount: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.text,
   },
   statusBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginTop: 4,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  chevron: {
-    marginLeft: 'auto',
+  editIconBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyContainer: {
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
     padding: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    backgroundColor: Colors.white,
+    borderRadius: Radii.xl,
     borderWidth: 1,
-    borderColor: '#F1F1F1',
-    borderStyle: 'dashed',
+    borderColor: Colors.border,
   },
   emptyText: {
     marginTop: 10,
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.textTertiary,
     fontWeight: '600',
-  }
+  },
 });
 
 export default HomeScreen;

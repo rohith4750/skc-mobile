@@ -8,7 +8,6 @@ export const orderApi = apiSlice.injectEndpoints({
       query: () => 'orders',
       providesTags: ['Order'],
       transformResponse: (response: any) => {
-        // Handle both {data: [...]} and direct array responses
         const data = response.data || response;
         return Array.isArray(data) ? data : [];
       },
@@ -18,10 +17,10 @@ export const orderApi = apiSlice.injectEndpoints({
       providesTags: (_result, _error, id) => [{ type: 'Order', id }],
     }),
     updateOrderStatus: builder.mutation<Order, { id: string; status: string }>({
-      query: ({ id, ...patch }) => ({
-        url: `orders/${id}/status`,
-        method: 'PATCH',
-        body: patch,
+      query: ({ id, status }) => ({
+        url: `orders/${id}`,
+        method: 'PUT',
+        body: { status },
       }),
       invalidatesTags: (_result, _error, { id }) => [
         { type: 'Order', id },
@@ -33,6 +32,24 @@ export const orderApi = apiSlice.injectEndpoints({
         url: 'orders',
         method: 'POST',
         body: newOrder,
+      }),
+      invalidatesTags: ['Order'],
+    }),
+    updateOrder: builder.mutation<Order, { id: string; [key: string]: any }>({
+      query: ({ id, ...patch }) => ({
+        url: `orders/${id}`,
+        method: 'PUT',
+        body: patch,
+      }),
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: 'Order', id },
+        'Order',
+      ],
+    }),
+    deleteOrder: builder.mutation<{ success: boolean }, string>({
+      query: (id) => ({
+        url: `orders/${id}`,
+        method: 'DELETE',
       }),
       invalidatesTags: ['Order'],
     }),
@@ -50,5 +67,7 @@ export const {
   useGetOrderByIdQuery,
   useUpdateOrderStatusMutation,
   useCreateOrderMutation,
+  useUpdateOrderMutation,
+  useDeleteOrderMutation,
   useSendOrderEmailMutation,
 } = orderApi;

@@ -11,7 +11,6 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
-  Switch,
   Modal,
   FlatList,
   StatusBar
@@ -34,14 +33,13 @@ import {
   Truck, 
   Percent, 
   CheckCircle2,
-  DollarSign,
-  Info
+  DollarSign
 } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useToast } from '../components/Toast';
 import { useGetCustomersQuery, useCreateCustomerMutation } from '../services/customerApi';
 import { useGetMenuQuery } from '../services/menuApi';
-import { useCreateOrderMutation } from '../services/orderApi';
+import { useCreateOrderMutation, useUpdateOrderMutation } from '../services/orderApi';
 
 const PAYMENT_METHODS = [
   { label: 'Cash', value: 'cash' },
@@ -102,7 +100,9 @@ interface FormStall {
   services: string[];
 }
 
-const NewOrderScreen = ({ navigation }: any) => {
+const NewOrderScreen = ({ route, navigation }: any) => {
+  const orderToEdit = route.params?.orderToEdit;
+  const isEditing = !!orderToEdit;
   const { showToast } = useToast();
   
   // Queries & Mutations
@@ -110,6 +110,7 @@ const NewOrderScreen = ({ navigation }: any) => {
   const { data: menuItems = [], isLoading: loadingMenu } = useGetMenuQuery();
   const [createCustomer, { isLoading: isSavingCustomer }] = useCreateCustomerMutation();
   const [createOrder, { isLoading: isCreatingOrder }] = useCreateOrderMutation();
+  const [updateOrder, { isLoading: isUpdatingOrder }] = useUpdateOrderMutation();
 
   // Form State
   const [customerId, setCustomerId] = useState('');
@@ -125,12 +126,12 @@ const NewOrderScreen = ({ navigation }: any) => {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card' | 'bank_transfer' | 'other'>('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
 
-  // UI state
+  // Accordion section state
   const [expandedSection, setExpandedSection] = useState<'customer' | 'meals' | 'stalls' | 'financials' | null>('customer');
   const [expandedMealCards, setExpandedMealCards] = useState<Record<string, boolean>>({});
   const [expandedStallCards, setExpandedStallCards] = useState<Record<string, boolean>>({});
   
-  // Search & Selector Modals
+  // Modals & Search State
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [newCustomerModalVisible, setNewCustomerModalVisible] = useState(false);
@@ -141,17 +142,170 @@ const NewOrderScreen = ({ navigation }: any) => {
   const [activeMealIdForItemSelection, setActiveMealIdForItemSelection] = useState<string | null>(null);
   const [activeStallIdForItemSelection, setActiveStallIdForItemSelection] = useState<string | null>(null);
 
-  // Auto-generate unique local IDs
   const generateId = () => Math.random().toString(36).substring(2, 9);
 
-  // Initialize with one default meal session
+  // Initialize or prefill when editing
   useEffect(() => {
-    if (mealTypes.length === 0) {
-      handleAddMealType();
-    }
-  }, []);
+    if (isEditing && orderToEdit) {
+      setCustomerId(orderToEdit.customerId || orderToEdit.customer?.id || '');
+      setEventName(orderToEdit.eventName || '');
+      setOrderType(orderToEdit.orderType || 'EVENT');
+      setDiscount(orderToEdit.discount ? String(orderToEdit.discount) : '');
+      setTransportCost(orderToEdit.transportCost ? String(orderToEdit.transportCost) : '');
+      setWaterBottlesCost(orderToEdit.waterBottlesCost ? String(orderToEdit.waterBottlesCost) : '');
+      setAdvancePaid(orderToEdit.advancePaid ? String(orderToEdit.advancePaid) : '');
+      setPaymentMethod(orderToEdit.paymentMethod || 'cash');
+      setPaymentNotes(orderToEdit.internalNote || '');
 
-  // Filtered lists
+      const allItems = Array.isArray(orderToEdit.items) ? orderToEdit.items : [];
+
+      if (orderToEdit.mealTypeAmounts && typeof orderToEdit.mealTypeAmounts === 'object' && Object.keys(orderToEdit.mealTypeAmounts).length > 0) {
+        const assignedItemIds = new Set<string>();
+
+        const loadedMeals: FormMealType[] = Object.entries(orderToEdit.mealTypeAmounts).map(([id, data]: [string, any]) => {
+          const sessionType = (data.menuType || '').toLowerCase();
+          
+          const sessionItems = allItems.filter((i: any) => {
+            const itemMealType = String(i.mealType || '').toLowerCase();
+            return i.mealType === id || (sessionType && itemMealType === sessionType);
+          });
+
+          const selectedItems: string[] = [];
+          const itemQuantities: Record<string, string> = {};
+          const itemCustomizations: Record<string, string> = {};
+          const itemPrices: Record<string, string> = {};
+
+          sessionItems.forEach((i: any) => {
+            const itemId = i.menuItemId || i.menuItem?.id || i.id;
+            if (itemId) {
+              if (!selectedItems.includes(itemId)) {
+                selectedItems.push(itemId);
+              }
+              assignedItemIds.add(itemId);
+              itemQuantities[itemId] = String(i.quantity ?? 1);
+              if (i.customization) itemCustomizations[itemId] = String(i.customization);
+              if (i.price) itemPrices[itemId] = String(i.price);
+            }
+          });
+
+          return {
+            id,
+            eventName: data.eventName || orderToEdit.eventName || '',
+            venue: data.venue || '',
+            menuType: data.menuType || '',
+            selectedMenuItems: selectedItems,
+            pricingMethod: data.pricingMethod || 'manual',
+            numberOfPlates: data.numberOfPlates ? String(data.numberOfPlates) : '',
+            platePrice: data.platePrice ? String(data.platePrice) : '',
+            manualAmount: data.manualAmount ? String(data.manualAmount) : (data.amount ? String(data.amount) : ''),
+            date: data.date || orderToEdit.eventDate || '',
+            time: data.time || '',
+            services: data.services || [],
+            numberOfMembers: data.numberOfMembers ? String(data.numberOfMembers) : '',
+            itemCustomizations,
+            itemQuantities,
+            itemPrices,
+            description: data.description || '',
+          };
+        });
+
+        // Collect any unassigned items and put into the first session
+        const unassigned = allItems.filter((i: any) => {
+          const itemId = i.menuItemId || i.menuItem?.id || i.id;
+          return itemId && !assignedItemIds.has(itemId);
+        });
+
+        if (unassigned.length > 0 && loadedMeals.length > 0) {
+          unassigned.forEach((i: any) => {
+            const itemId = i.menuItemId || i.menuItem?.id || i.id;
+            if (itemId && !loadedMeals[0].selectedMenuItems.includes(itemId)) {
+              loadedMeals[0].selectedMenuItems.push(itemId);
+              loadedMeals[0].itemQuantities[itemId] = String(i.quantity ?? 1);
+              if (i.customization) loadedMeals[0].itemCustomizations[itemId] = String(i.customization);
+              if (i.price) loadedMeals[0].itemPrices[itemId] = String(i.price);
+            }
+          });
+        }
+
+        setMealTypes(loadedMeals);
+        const initialExpanded: Record<string, boolean> = {};
+        loadedMeals.forEach(m => initialExpanded[m.id] = true);
+        setExpandedMealCards(initialExpanded);
+      } else {
+        // Fallback: group all items into a single session
+        const defaultId = generateId();
+        const selectedItems: string[] = [];
+        const itemQuantities: Record<string, string> = {};
+        const itemCustomizations: Record<string, string> = {};
+        const itemPrices: Record<string, string> = {};
+
+        allItems.forEach((i: any) => {
+          const itemId = i.menuItemId || i.menuItem?.id || i.id;
+          if (itemId) {
+            if (!selectedItems.includes(itemId)) {
+              selectedItems.push(itemId);
+            }
+            itemQuantities[itemId] = String(i.quantity ?? 1);
+            if (i.customization) itemCustomizations[itemId] = String(i.customization);
+            if (i.price) itemPrices[itemId] = String(i.price);
+          }
+        });
+
+        const defaultMeal: FormMealType = {
+          id: defaultId,
+          eventName: orderToEdit.eventName || '',
+          venue: '',
+          menuType: 'session',
+          selectedMenuItems: selectedItems,
+          pricingMethod: 'manual',
+          numberOfPlates: '',
+          platePrice: '',
+          manualAmount: String(orderToEdit.totalAmount || 0),
+          date: orderToEdit.eventDate || new Date().toISOString().split('T')[0],
+          time: '',
+          services: [],
+          numberOfMembers: '',
+          itemCustomizations,
+          itemQuantities,
+          itemPrices,
+          description: '',
+        };
+
+        setMealTypes([defaultMeal]);
+        setExpandedMealCards({ [defaultId]: true });
+      }
+
+      // Parse stalls if available
+      if (Array.isArray(orderToEdit.stalls) && orderToEdit.stalls.length > 0) {
+        setShowStalls(true);
+        const loadedStalls: FormStall[] = orderToEdit.stalls.map((s: any) => ({
+          id: s.id || generateId(),
+          category: s.category || '',
+          description: s.description || '',
+          selectedMenuItems: s.selectedMenuItems || [],
+          itemCustomizations: s.itemCustomizations || {},
+          itemQuantities: s.itemQuantities || {},
+          pricingMethod: s.pricingMethod || 'manual',
+          numberOfPlates: s.numberOfPlates ? String(s.numberOfPlates) : '',
+          platePrice: s.platePrice ? String(s.platePrice) : '',
+          manualAmount: s.manualAmount ? String(s.manualAmount) : '',
+          cost: s.cost ? String(s.cost) : '',
+          numberOfMembers: s.numberOfMembers ? String(s.numberOfMembers) : '',
+          eventName: s.eventName || '',
+          venue: s.venue || '',
+          date: s.date || '',
+          time: s.time || '',
+          services: s.services || [],
+        }));
+        setStalls(loadedStalls);
+      }
+    } else {
+      if (mealTypes.length === 0) {
+        handleAddMealType();
+      }
+    }
+  }, [isEditing, orderToEdit]);
+
   const filteredCustomersList = useMemo(() => {
     if (!customerSearch.trim()) return customers;
     const query = customerSearch.toLowerCase();
@@ -174,7 +328,7 @@ const NewOrderScreen = ({ navigation }: any) => {
     return customers.find(c => c.id === customerId);
   }, [customers, customerId]);
 
-  // Pricing calculations
+  // Total pricing calculations
   const totals = useMemo(() => {
     let mealTypesTotal = 0;
     let waterTotal = 0;
@@ -231,7 +385,6 @@ const NewOrderScreen = ({ navigation }: any) => {
     return { total, balance, waterTotal, stallsTotal, mealTypesTotal };
   }, [mealTypes, stalls, showStalls, transportCost, discount, waterBottlesCost, advancePaid, menuItems]);
 
-  // Handlers for Meal Types
   const handleAddMealType = () => {
     const id = generateId();
     const newMeal: FormMealType = {
@@ -294,7 +447,7 @@ const NewOrderScreen = ({ navigation }: any) => {
     });
 
     if (commonItems.length === 0) {
-      showToast('No common items found in database', 'error');
+      showToast('No common items found', 'error');
       return;
     }
 
@@ -320,10 +473,9 @@ const NewOrderScreen = ({ navigation }: any) => {
       }
       return mt;
     }));
-    showToast('Common items added to session', 'success');
+    showToast('Common items added', 'success');
   };
 
-  // Handlers for Stalls
   const handleAddStall = () => {
     const id = generateId();
     const newStall: FormStall = {
@@ -371,7 +523,6 @@ const NewOrderScreen = ({ navigation }: any) => {
     }));
   };
 
-  // Item Modal Handlers
   const openItemSelector = (mealId: string | null, stallId: string | null) => {
     setActiveMealIdForItemSelection(mealId);
     setActiveStallIdForItemSelection(stallId);
@@ -449,7 +600,6 @@ const NewOrderScreen = ({ navigation }: any) => {
     }
   };
 
-  // Quick Customer Creation
   const handleSaveCustomer = async () => {
     if (!newCustomerForm.name.trim() || !newCustomerForm.phone.trim() || !newCustomerForm.address.trim()) {
       Alert.alert('Validation Error', 'Name, Phone and Address are required.');
@@ -467,14 +617,13 @@ const NewOrderScreen = ({ navigation }: any) => {
     }
   };
 
-  // Submit Order Creation
   const handleSubmit = async () => {
     if (!customerId) {
       Alert.alert('Validation Error', 'Please select a customer.');
       return;
     }
     if (!eventName.trim()) {
-      Alert.alert('Validation Error', 'Please enter an event/order name.');
+      Alert.alert('Validation Error', 'Please enter an event name.');
       return;
     }
     if (mealTypes.length === 0) {
@@ -482,7 +631,6 @@ const NewOrderScreen = ({ navigation }: any) => {
       return;
     }
 
-    // Sessions Validation
     for (let i = 0; i < mealTypes.length; i++) {
       const mt = mealTypes[i];
       if (!mt.menuType) {
@@ -500,7 +648,6 @@ const NewOrderScreen = ({ navigation }: any) => {
     }
 
     try {
-      // Build API Payload
       const mealTypeAmountsPayload: Record<string, any> = {};
       mealTypes.forEach(mt => {
         mealTypeAmountsPayload[mt.id] = {
@@ -566,7 +713,6 @@ const NewOrderScreen = ({ navigation }: any) => {
         services: s.services
       }));
 
-      // Find the earliest date to set as order date
       const sortedDates = mealTypes
         .map(mt => mt.date)
         .filter(Boolean)
@@ -582,7 +728,6 @@ const NewOrderScreen = ({ navigation }: any) => {
         totalAmount: totals.total,
         advancePaid: parseFloat(advancePaid) || 0,
         remainingAmount: totals.balance,
-        status: 'pending', // Starts as pending quotation
         mealTypeAmounts: mealTypeAmountsPayload,
         stalls: stallsPayload,
         transportCost: parseFloat(transportCost) || 0,
@@ -594,12 +739,18 @@ const NewOrderScreen = ({ navigation }: any) => {
         eventDate: primaryDate
       };
 
-      await createOrder(payload).unwrap();
-      showToast('Order created successfully!', 'success');
+      if (isEditing && orderToEdit?.id) {
+        await updateOrder({ id: orderToEdit.id, ...payload }).unwrap();
+        showToast('Order updated successfully!', 'success');
+      } else {
+        await createOrder({ ...payload, status: 'pending' }).unwrap();
+        showToast('Order created successfully!', 'success');
+      }
+
       navigation.goBack();
     } catch (err: any) {
-      console.error('Error creating order:', err);
-      const errMsg = err?.data?.error || 'Failed to submit order. Check details.';
+      console.error('Error submitting order:', err);
+      const errMsg = err?.data?.error || 'Failed to submit order.';
       Alert.alert('Submission Error', errMsg);
     }
   };
@@ -614,14 +765,16 @@ const NewOrderScreen = ({ navigation }: any) => {
       >
         <View style={styles.headerTitleRow}>
           <View style={[styles.statusIndicator, { backgroundColor: isCompleted ? Colors.success : Colors.border }]}>
-            {isCompleted ? <CheckCircle2 size={14} color={Colors.white} /> : <Text style={styles.indicatorNumber}>{sectionKey === 'customer' ? '1' : sectionKey === 'meals' ? '2' : sectionKey === 'stalls' ? '3' : '4'}</Text>}
+            {isCompleted ? <CheckCircle2 size={12} color={Colors.white} /> : <Text style={styles.indicatorNumber}>{sectionKey === 'customer' ? '1' : sectionKey === 'meals' ? '2' : sectionKey === 'stalls' ? '3' : '4'}</Text>}
           </View>
           <Text style={styles.sectionTitleText}>{title}</Text>
         </View>
-        {isExpanded ? <ChevronUp size={20} color={Colors.textSecondary} /> : <ChevronDown size={20} color={Colors.textSecondary} />}
+        {isExpanded ? <ChevronUp size={18} color={Colors.textSecondary} /> : <ChevronDown size={18} color={Colors.textSecondary} />}
       </TouchableOpacity>
     );
   };
+
+  const isSubmitting = isCreatingOrder || isUpdatingOrder;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -630,71 +783,71 @@ const NewOrderScreen = ({ navigation }: any) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        {/* Screen Header */}
+        {/* Header */}
         <View style={styles.screenHeader}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <ArrowLeft size={24} color={Colors.text} />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+            <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
           <View>
-            <Text style={styles.screenTitle}>Create Order</Text>
-            <Text style={styles.screenSubtitle}>Add a new booking or quotation</Text>
+            <Text style={styles.screenTitle}>{isEditing ? `Edit Order #${orderToEdit.id?.slice(-6)?.toUpperCase()}` : 'Create Order'}</Text>
+            <Text style={styles.screenSubtitle}>{isEditing ? 'Modify order details, sessions & pricing' : 'Add a new booking or quotation'}</Text>
           </View>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           
           {/* Section 1: Customer Details */}
-          <View style={styles.accordionContainer}>
-            {renderSectionHeader('Customer & Event Details', 'customer', !!customerId && !!eventName.trim())}
+          <View style={[styles.accordionContainer, Shadows.small]}>
+            {renderSectionHeader('1. Client & Event Details', 'customer', !!customerId && !!eventName.trim())}
             {expandedSection === 'customer' && (
               <View style={styles.accordionBody}>
-                {/* Customer Picker */}
-                <Text style={styles.inputLabel}>Select Customer *</Text>
+                <Text style={styles.inputLabel}>Select Client *</Text>
                 <View style={styles.customerSelectorRow}>
                   <TouchableOpacity 
                     style={styles.customerSelectorBtn}
                     onPress={() => setCustomerModalVisible(true)}
+                    activeOpacity={0.7}
                   >
-                    <User size={18} color={Colors.textSecondary} style={{ marginRight: 8 }} />
-                    <Text style={[styles.customerSelectorText, !selectedCustomerObj && { color: Colors.textTertiary }]}>
+                    <User size={16} color={Colors.textTertiary} style={{ marginRight: 8 }} />
+                    <Text style={[styles.customerSelectorText, !selectedCustomerObj && { color: Colors.textTertiary }]} numberOfLines={1}>
                       {selectedCustomerObj ? `${selectedCustomerObj.name} (${selectedCustomerObj.phone})` : 'Search & Select Customer...'}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.quickAddBtn}
                     onPress={() => setNewCustomerModalVisible(true)}
+                    activeOpacity={0.8}
                   >
-                    <Plus size={20} color={Colors.white} />
+                    <Plus size={18} color={Colors.white} />
                   </TouchableOpacity>
                 </View>
 
                 {selectedCustomerObj && (
                   <View style={styles.customerInfoCard}>
-                    <MapPin size={14} color={Colors.textSecondary} style={{ marginTop: 2, marginRight: 6 }} />
+                    <MapPin size={14} color={Colors.primaryDark} style={{ marginTop: 2, marginRight: 6 }} />
                     <Text style={styles.customerAddressText}>{selectedCustomerObj.address || 'No address provided'}</Text>
                   </View>
                 )}
 
-                {/* Event Name */}
                 <Text style={styles.inputLabel}>Event / Order Name *</Text>
                 <View style={styles.textInputContainer}>
-                  <Utensils size={18} color={Colors.textSecondary} style={{ marginRight: 8 }} />
+                  <Utensils size={16} color={Colors.textTertiary} style={{ marginRight: 8 }} />
                   <TextInput 
                     style={styles.textInput}
                     value={eventName}
                     onChangeText={setEventName}
-                    placeholder="e.g. Rohith Marriage Ceremony"
+                    placeholder="e.g. Wedding Reception"
                     placeholderTextColor={Colors.textTertiary}
                   />
                 </View>
 
-                {/* Order Type Toggle */}
                 <View style={styles.typeToggleRow}>
-                  <Text style={styles.typeToggleLabel}>Order Type</Text>
+                  <Text style={styles.typeToggleLabel}>Catering Type</Text>
                   <View style={styles.typeSelector}>
                     <TouchableOpacity 
                       style={[styles.typeBtn, orderType === 'EVENT' && styles.typeBtnActive]}
-                      onPress={() => setEventName(eventName)}
+                      onPress={() => setOrderType('EVENT')}
+                      activeOpacity={0.7}
                     >
                       <Text style={[styles.typeBtnText, orderType === 'EVENT' && styles.typeBtnTextActive]}>Event Catering</Text>
                     </TouchableOpacity>
@@ -705,15 +858,14 @@ const NewOrderScreen = ({ navigation }: any) => {
           </View>
 
           {/* Section 2: Meal Sessions */}
-          <View style={styles.accordionContainer}>
-            {renderSectionHeader('Meal Sessions', 'meals', mealTypes.length > 0 && mealTypes.every(mt => !!mt.menuType && mt.selectedMenuItems.length > 0))}
+          <View style={[styles.accordionContainer, Shadows.small]}>
+            {renderSectionHeader('2. Meal Sessions & Menu Builder', 'meals', mealTypes.length > 0 && mealTypes.every(mt => !!mt.menuType && mt.selectedMenuItems.length > 0))}
             {expandedSection === 'meals' && (
               <View style={styles.accordionBody}>
                 {mealTypes.map((mt, index) => {
                   const isCardExpanded = expandedMealCards[mt.id];
                   return (
-                    <View key={mt.id} style={[styles.card, Shadows.small]}>
-                      {/* Card Header Toggle */}
+                    <View key={mt.id} style={styles.card}>
                       <TouchableOpacity 
                         style={styles.cardHeader}
                         onPress={() => setExpandedMealCards(prev => ({ ...prev, [mt.id]: !isCardExpanded }))}
@@ -722,20 +874,19 @@ const NewOrderScreen = ({ navigation }: any) => {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.cardIndexText}>SESSION #{index + 1}</Text>
                           <Text style={styles.cardTitleText}>
-                            {mt.menuType ? mt.menuType.toUpperCase() : 'Select Menu Type...'}
+                            {mt.menuType ? mt.menuType.toUpperCase() : 'Select Session Type...'}
                           </Text>
                         </View>
                         <View style={styles.cardHeaderActions}>
-                          <TouchableOpacity onPress={() => handleRemoveMealType(mt.id)} style={styles.trashBtn}>
-                            <Trash2 size={18} color={Colors.error} />
+                          <TouchableOpacity onPress={() => handleRemoveMealType(mt.id)} style={styles.trashBtn} activeOpacity={0.7}>
+                            <Trash2 size={16} color={Colors.error} />
                           </TouchableOpacity>
-                          {isCardExpanded ? <ChevronUp size={18} color={Colors.textSecondary} /> : <ChevronDown size={18} color={Colors.textSecondary} />}
+                          {isCardExpanded ? <ChevronUp size={16} color={Colors.textSecondary} /> : <ChevronDown size={16} color={Colors.textSecondary} />}
                         </View>
                       </TouchableOpacity>
 
                       {isCardExpanded && (
                         <View style={styles.cardBody}>
-                          {/* Menu Type Picker */}
                           <Text style={styles.cardInputLabel}>Session Type *</Text>
                           <View style={styles.typeGrid}>
                             {MENU_TYPES.map(type => (
@@ -743,6 +894,7 @@ const NewOrderScreen = ({ navigation }: any) => {
                                 key={type.value}
                                 onPress={() => handleUpdateMealField(mt.id, 'menuType', type.value)}
                                 style={[styles.typeGridBtn, mt.menuType === type.value && styles.typeGridBtnActive]}
+                                activeOpacity={0.7}
                               >
                                 <Text style={[styles.typeGridBtnText, mt.menuType === type.value && styles.typeGridBtnTextActive]}>
                                   {type.label}
@@ -751,12 +903,11 @@ const NewOrderScreen = ({ navigation }: any) => {
                             ))}
                           </View>
 
-                          {/* Date, Time, Venue */}
                           <View style={styles.formRow}>
-                            <View style={{ flex: 1, marginRight: 10 }}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
                               <Text style={styles.cardInputLabel}>Event Date *</Text>
                               <View style={styles.smallInputContainer}>
-                                <Calendar size={14} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                                <Calendar size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
                                 <TextInput 
                                   style={styles.smallInput}
                                   value={mt.date}
@@ -767,14 +918,14 @@ const NewOrderScreen = ({ navigation }: any) => {
                               </View>
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.cardInputLabel}>Session Time</Text>
+                              <Text style={styles.cardInputLabel}>Time</Text>
                               <View style={styles.smallInputContainer}>
-                                <Clock size={14} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                                <Clock size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
                                 <TextInput 
                                   style={styles.smallInput}
                                   value={mt.time}
                                   onChangeText={(t) => handleUpdateMealField(mt.id, 'time', t)}
-                                  placeholder="e.g. 12:30 PM"
+                                  placeholder="12:30 PM"
                                   placeholderTextColor={Colors.textTertiary}
                                 />
                               </View>
@@ -783,28 +934,29 @@ const NewOrderScreen = ({ navigation }: any) => {
 
                           <Text style={styles.cardInputLabel}>Venue Address</Text>
                           <View style={styles.smallInputContainer}>
-                            <MapPin size={14} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                            <MapPin size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
                             <TextInput 
                               style={styles.smallInput}
                               value={mt.venue}
                               onChangeText={(t) => handleUpdateMealField(mt.id, 'venue', t)}
-                              placeholder="Session location / hall"
+                              placeholder="Hall name / Location"
                               placeholderTextColor={Colors.textTertiary}
                             />
                           </View>
 
-                          {/* Pricing Method Toggle */}
                           <Text style={styles.cardInputLabel}>Pricing Method</Text>
                           <View style={styles.pricingToggleRow}>
                             <TouchableOpacity 
                               style={[styles.pricingMethodBtn, mt.pricingMethod === 'manual' && styles.pricingMethodBtnActive]}
                               onPress={() => handleUpdateMealField(mt.id, 'pricingMethod', 'manual')}
+                              activeOpacity={0.7}
                             >
                               <Text style={[styles.pricingMethodBtnText, mt.pricingMethod === 'manual' && styles.pricingMethodBtnTextActive]}>Manual Amount</Text>
                             </TouchableOpacity>
                             <TouchableOpacity 
                               style={[styles.pricingMethodBtn, mt.pricingMethod === 'plate-based' && styles.pricingMethodBtnActive]}
                               onPress={() => handleUpdateMealField(mt.id, 'pricingMethod', 'plate-based')}
+                              activeOpacity={0.7}
                             >
                               <Text style={[styles.pricingMethodBtnText, mt.pricingMethod === 'plate-based' && styles.pricingMethodBtnTextActive]}>Plate-Based</Text>
                             </TouchableOpacity>
@@ -812,69 +964,73 @@ const NewOrderScreen = ({ navigation }: any) => {
 
                           {mt.pricingMethod === 'plate-based' ? (
                             <View style={styles.formRow}>
-                              <View style={{ flex: 1, marginRight: 10 }}>
-                                <Text style={styles.cardInputLabel}>No. of Plates *</Text>
+                              <View style={{ flex: 1, marginRight: 8 }}>
+                                <Text style={styles.cardInputLabel}>Plates Count *</Text>
                                 <TextInput 
                                   style={styles.borderedInput}
                                   value={mt.numberOfPlates}
                                   keyboardType="numeric"
                                   onChangeText={(t) => handleUpdateMealField(mt.id, 'numberOfPlates', t)}
                                   placeholder="0"
+                                  placeholderTextColor={Colors.textTertiary}
                                 />
                               </View>
                               <View style={{ flex: 1 }}>
-                                <Text style={styles.cardInputLabel}>Plate Price * (₹)</Text>
+                                <Text style={styles.cardInputLabel}>Plate Price (₹) *</Text>
                                 <TextInput 
                                   style={styles.borderedInput}
                                   value={mt.platePrice}
                                   keyboardType="numeric"
                                   onChangeText={(t) => handleUpdateMealField(mt.id, 'platePrice', t)}
                                   placeholder="0.00"
+                                  placeholderTextColor={Colors.textTertiary}
                                 />
                               </View>
                             </View>
                           ) : mt.menuType !== 'saree' ? (
                             <View>
-                              <Text style={styles.cardInputLabel}>Manual Amount * (₹)</Text>
+                              <Text style={styles.cardInputLabel}>Manual Amount (₹) *</Text>
                               <TextInput 
                                 style={styles.borderedInput}
                                 value={mt.manualAmount}
                                 keyboardType="numeric"
                                 onChangeText={(t) => handleUpdateMealField(mt.id, 'manualAmount', t)}
                                 placeholder="0.00"
+                                placeholderTextColor={Colors.textTertiary}
                               />
                             </View>
                           ) : null}
 
-                          <Text style={styles.cardInputLabel}>Plates / Head Count Label</Text>
+                          <Text style={styles.cardInputLabel}>Expected Guest Count</Text>
                           <TextInput 
                             style={styles.borderedInput}
                             value={mt.numberOfMembers}
                             keyboardType="numeric"
                             onChangeText={(t) => handleUpdateMealField(mt.id, 'numberOfMembers', t)}
-                            placeholder="Expected guests count"
+                            placeholder="Guest count"
+                            placeholderTextColor={Colors.textTertiary}
                           />
 
-                          {/* Menu Items Selector */}
                           <View style={styles.menuSelectionHeader}>
-                            <Text style={styles.cardInputLabel}>Session Items * ({mt.selectedMenuItems.length})</Text>
+                            <Text style={styles.cardInputLabel}>Selected Items ({mt.selectedMenuItems.length})</Text>
                             <TouchableOpacity 
                               style={styles.commonItemsBtn}
                               onPress={() => handleSelectCommonItems(mt.id)}
+                              activeOpacity={0.7}
                             >
-                              <Text style={styles.commonItemsBtnText}>+ Add Common</Text>
+                              <Text style={styles.commonItemsBtnText}>+ Common Items</Text>
                             </TouchableOpacity>
                           </View>
 
                           <TouchableOpacity 
                             style={styles.selectItemsBtn}
                             onPress={() => openItemSelector(mt.id, null)}
+                            activeOpacity={0.8}
                           >
                             <Plus size={16} color={Colors.primary} style={{ marginRight: 6 }} />
                             <Text style={styles.selectItemsBtnText}>Add / Search Dishes...</Text>
                           </TouchableOpacity>
 
-                          {/* Selected Items List */}
                           {mt.selectedMenuItems.map(itemId => {
                             const dish = menuItems.find(i => i.id === itemId);
                             if (!dish) return null;
@@ -884,7 +1040,6 @@ const NewOrderScreen = ({ navigation }: any) => {
                                   <Text style={styles.selectedItemName}>{dish.name}</Text>
                                   {dish.nameTelugu && <Text style={styles.selectedItemTelugu}>({dish.nameTelugu})</Text>}
                                   
-                                  {/* Customization input */}
                                   <TextInput 
                                     style={styles.customizationInput}
                                     value={mt.itemCustomizations[itemId] || ''}
@@ -892,7 +1047,7 @@ const NewOrderScreen = ({ navigation }: any) => {
                                       const updatedCustom = { ...mt.itemCustomizations, [itemId]: t };
                                       handleUpdateMealField(mt.id, 'itemCustomizations', updatedCustom);
                                     }}
-                                    placeholder="Add customization (sweet/spice note)"
+                                    placeholder="Add custom notes (spice/sweet level)"
                                     placeholderTextColor={Colors.textTertiary}
                                   />
                                 </View>
@@ -911,30 +1066,15 @@ const NewOrderScreen = ({ navigation }: any) => {
                                     />
                                   </View>
 
-                                  {mt.menuType === 'saree' && (
-                                    <View style={styles.priceContainer}>
-                                      <Text style={styles.qtyLabel}>Price:</Text>
-                                      <TextInput 
-                                        style={styles.qtyInput}
-                                        value={mt.itemPrices[itemId] || ''}
-                                        keyboardType="numeric"
-                                        placeholder="₹0"
-                                        onChangeText={(t) => {
-                                          const updatedPrice = { ...mt.itemPrices, [itemId]: t };
-                                          handleUpdateMealField(mt.id, 'itemPrices', updatedPrice);
-                                        }}
-                                      />
-                                    </View>
-                                  )}
-
                                   <TouchableOpacity 
                                     onPress={() => {
                                       const newIds = mt.selectedMenuItems.filter(id => id !== itemId);
                                       handleUpdateMealField(mt.id, 'selectedMenuItems', newIds);
                                     }}
                                     style={styles.removeItemBtn}
+                                    activeOpacity={0.7}
                                   >
-                                    <X size={16} color={Colors.error} />
+                                    <X size={14} color={Colors.error} />
                                   </TouchableOpacity>
                                 </View>
                               </View>
@@ -949,23 +1089,24 @@ const NewOrderScreen = ({ navigation }: any) => {
                 <TouchableOpacity 
                   style={styles.addSessionBtn}
                   onPress={handleAddMealType}
+                  activeOpacity={0.8}
                 >
-                  <Plus size={18} color={Colors.white} style={{ marginRight: 6 }} />
+                  <Plus size={16} color={Colors.white} style={{ marginRight: 6 }} />
                   <Text style={styles.addSessionBtnText}>Add Another Meal Session</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
 
-          {/* Section 3: Stalls */}
-          <View style={styles.accordionContainer}>
-            {renderSectionHeader('Event Food Stalls', 'stalls', !showStalls || (stalls.length > 0 && stalls.every(s => !!s.category.trim())))}
+          {/* Section 3: Food Stalls */}
+          <View style={[styles.accordionContainer, Shadows.small]}>
+            {renderSectionHeader('3. Special Stalls & Counters', 'stalls', !showStalls || (stalls.length > 0 && stalls.every(s => !!s.category.trim())))}
             {expandedSection === 'stalls' && (
               <View style={styles.accordionBody}>
                 {showStalls && stalls.map((stall, index) => {
                   const isStallExpanded = expandedStallCards[stall.id];
                   return (
-                    <View key={stall.id} style={[styles.card, Shadows.small]}>
+                    <View key={stall.id} style={styles.card}>
                       <TouchableOpacity 
                         style={styles.cardHeader}
                         onPress={() => setExpandedStallCards(prev => ({ ...prev, [stall.id]: !isStallExpanded }))}
@@ -978,10 +1119,10 @@ const NewOrderScreen = ({ navigation }: any) => {
                           </Text>
                         </View>
                         <View style={styles.cardHeaderActions}>
-                          <TouchableOpacity onPress={() => handleRemoveStall(stall.id)} style={styles.trashBtn}>
-                            <Trash2 size={18} color={Colors.error} />
+                          <TouchableOpacity onPress={() => handleRemoveStall(stall.id)} style={styles.trashBtn} activeOpacity={0.7}>
+                            <Trash2 size={16} color={Colors.error} />
                           </TouchableOpacity>
-                          {isStallExpanded ? <ChevronUp size={18} color={Colors.textSecondary} /> : <ChevronDown size={18} color={Colors.textSecondary} />}
+                          {isStallExpanded ? <ChevronUp size={16} color={Colors.textSecondary} /> : <ChevronDown size={16} color={Colors.textSecondary} />}
                         </View>
                       </TouchableOpacity>
 
@@ -992,19 +1133,12 @@ const NewOrderScreen = ({ navigation }: any) => {
                             style={styles.borderedInput}
                             value={stall.category}
                             onChangeText={(t) => handleUpdateStallField(stall.id, 'category', t)}
-                            placeholder="e.g. Chat Counter, Ice Cream"
-                          />
-
-                          <Text style={styles.cardInputLabel}>Stall Description</Text>
-                          <TextInput 
-                            style={styles.borderedInput}
-                            value={stall.description}
-                            onChangeText={(t) => handleUpdateStallField(stall.id, 'description', t)}
-                            placeholder="Details about items or setups"
+                            placeholder="e.g. Chaat Stall, Welcome Drinks"
+                            placeholderTextColor={Colors.textTertiary}
                           />
 
                           <View style={styles.formRow}>
-                            <View style={{ flex: 1, marginRight: 10 }}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
                               <Text style={styles.cardInputLabel}>Plates Count</Text>
                               <TextInput 
                                 style={styles.borderedInput}
@@ -1012,6 +1146,7 @@ const NewOrderScreen = ({ navigation }: any) => {
                                 keyboardType="numeric"
                                 onChangeText={(t) => handleUpdateStallField(stall.id, 'numberOfPlates', t)}
                                 placeholder="0"
+                                placeholderTextColor={Colors.textTertiary}
                               />
                             </View>
                             <View style={{ flex: 1 }}>
@@ -1022,24 +1157,26 @@ const NewOrderScreen = ({ navigation }: any) => {
                                 keyboardType="numeric"
                                 onChangeText={(t) => handleUpdateStallField(stall.id, 'platePrice', t)}
                                 placeholder="0.00"
+                                placeholderTextColor={Colors.textTertiary}
                               />
                             </View>
                           </View>
 
-                          <Text style={styles.cardInputLabel}>Manual Stall Cost (₹)</Text>
+                          <Text style={styles.cardInputLabel}>Manual Stall Amount (₹)</Text>
                           <TextInput 
                             style={styles.borderedInput}
                             value={stall.manualAmount}
                             keyboardType="numeric"
                             onChangeText={(t) => handleUpdateStallField(stall.id, 'manualAmount', t)}
                             placeholder="0.00"
+                            placeholderTextColor={Colors.textTertiary}
                           />
 
-                          {/* Stall Items Selection */}
                           <Text style={styles.cardInputLabel}>Stall Items ({stall.selectedMenuItems.length})</Text>
                           <TouchableOpacity 
                             style={styles.selectItemsBtn}
                             onPress={() => openItemSelector(null, stall.id)}
+                            activeOpacity={0.8}
                           >
                             <Plus size={16} color={Colors.primary} style={{ marginRight: 6 }} />
                             <Text style={styles.selectItemsBtnText}>Add / Search Dishes...</Text>
@@ -1052,28 +1189,17 @@ const NewOrderScreen = ({ navigation }: any) => {
                               <View key={itemId} style={styles.selectedItemRow}>
                                 <View style={styles.selectedItemDetails}>
                                   <Text style={styles.selectedItemName}>{dish.name}</Text>
-                                  <TextInput 
-                                    style={styles.customizationInput}
-                                    value={stall.itemCustomizations[itemId] || ''}
-                                    onChangeText={(t) => {
-                                      const updatedCustom = { ...stall.itemCustomizations, [itemId]: t };
-                                      handleUpdateStallField(stall.id, 'itemCustomizations', updatedCustom);
-                                    }}
-                                    placeholder="Customization note"
-                                    placeholderTextColor={Colors.textTertiary}
-                                  />
                                 </View>
-                                <View style={styles.selectedItemActions}>
-                                  <TouchableOpacity 
-                                    onPress={() => {
-                                      const newIds = stall.selectedMenuItems.filter(id => id !== itemId);
-                                      handleUpdateStallField(stall.id, 'selectedMenuItems', newIds);
-                                    }}
-                                    style={styles.removeItemBtn}
-                                  >
-                                    <X size={16} color={Colors.error} />
-                                  </TouchableOpacity>
-                                </View>
+                                <TouchableOpacity 
+                                  onPress={() => {
+                                    const newIds = stall.selectedMenuItems.filter(id => id !== itemId);
+                                    handleUpdateStallField(stall.id, 'selectedMenuItems', newIds);
+                                  }}
+                                  style={styles.removeItemBtn}
+                                  activeOpacity={0.7}
+                                >
+                                  <X size={14} color={Colors.error} />
+                                </TouchableOpacity>
                               </View>
                             );
                           })}
@@ -1086,79 +1212,82 @@ const NewOrderScreen = ({ navigation }: any) => {
                 <TouchableOpacity 
                   style={styles.addStallBtn}
                   onPress={handleAddStall}
+                  activeOpacity={0.8}
                 >
-                  <Plus size={18} color={Colors.primary} style={{ marginRight: 6 }} />
-                  <Text style={styles.addStallBtnText}>Add Stall Counter</Text>
+                  <Plus size={16} color={Colors.primary} style={{ marginRight: 6 }} />
+                  <Text style={styles.addStallBtnText}>Add Food Stall / Counter</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
 
-          {/* Section 4: Global Financials */}
-          <View style={styles.accordionContainer}>
-            {renderSectionHeader('Financial Details & Payment', 'financials', true)}
+          {/* Section 4: Financials & Payment */}
+          <View style={[styles.accordionContainer, Shadows.small]}>
+            {renderSectionHeader('4. Financials & Payment', 'financials', true)}
             {expandedSection === 'financials' && (
               <View style={styles.accordionBody}>
-                {/* Side Costs */}
                 <View style={styles.formRow}>
-                  <View style={{ flex: 1, marginRight: 10 }}>
-                    <Text style={styles.inputLabel}>Transport Cost (₹)</Text>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.inputLabel}>Transport (₹)</Text>
                     <View style={styles.textInputContainer}>
-                      <Truck size={16} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                      <Truck size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
                       <TextInput 
                         style={styles.textInput}
                         value={transportCost}
                         keyboardType="numeric"
                         onChangeText={setTransportCost}
                         placeholder="0.00"
+                        placeholderTextColor={Colors.textTertiary}
                       />
                     </View>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>Water Bottles Cost (₹)</Text>
+                    <Text style={styles.inputLabel}>Water Bottles (₹)</Text>
                     <View style={styles.textInputContainer}>
-                      <DollarSign size={16} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                      <DollarSign size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
                       <TextInput 
                         style={styles.textInput}
                         value={waterBottlesCost}
                         keyboardType="numeric"
                         onChangeText={setWaterBottlesCost}
                         placeholder="0.00"
+                        placeholderTextColor={Colors.textTertiary}
                       />
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.formRow}>
-                  <View style={{ flex: 1, marginRight: 10 }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
                     <Text style={styles.inputLabel}>Discount (₹)</Text>
                     <View style={styles.textInputContainer}>
-                      <Percent size={16} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                      <Percent size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
                       <TextInput 
                         style={styles.textInput}
                         value={discount}
                         keyboardType="numeric"
                         onChangeText={setDiscount}
                         placeholder="0.00"
+                        placeholderTextColor={Colors.textTertiary}
                       />
                     </View>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.inputLabel}>Advance Paid (₹)</Text>
                     <View style={styles.textInputContainer}>
-                      <DollarSign size={16} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                      <DollarSign size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
                       <TextInput 
                         style={styles.textInput}
                         value={advancePaid}
                         keyboardType="numeric"
                         onChangeText={setAdvancePaid}
                         placeholder="0.00"
+                        placeholderTextColor={Colors.textTertiary}
                       />
                     </View>
                   </View>
                 </View>
 
-                {/* Payment Method */}
                 <Text style={styles.inputLabel}>Payment Method</Text>
                 <View style={styles.paymentMethodRow}>
                   {PAYMENT_METHODS.map(method => (
@@ -1166,6 +1295,7 @@ const NewOrderScreen = ({ navigation }: any) => {
                       key={method.value}
                       onPress={() => setPaymentMethod(method.value as any)}
                       style={[styles.paymentMethodTab, paymentMethod === method.value && styles.paymentMethodTabActive]}
+                      activeOpacity={0.7}
                     >
                       <Text style={[styles.paymentMethodText, paymentMethod === method.value && styles.paymentMethodTextActive]}>
                         {method.label}
@@ -1174,7 +1304,6 @@ const NewOrderScreen = ({ navigation }: any) => {
                   ))}
                 </View>
 
-                {/* Internal Notes */}
                 <Text style={styles.inputLabel}>Internal Order Note</Text>
                 <TextInput 
                   style={styles.textArea}
@@ -1182,16 +1311,17 @@ const NewOrderScreen = ({ navigation }: any) => {
                   multiline={true}
                   numberOfLines={3}
                   onChangeText={setPaymentNotes}
-                  placeholder="Notes about menu configurations, chef lists, etc."
+                  placeholder="Notes about setup, specific preferences..."
+                  placeholderTextColor={Colors.textTertiary}
                 />
               </View>
             )}
           </View>
 
-          <View style={{ height: 100 }} />
+          <View style={{ height: 90 }} />
         </ScrollView>
 
-        {/* Floating Totals Bar */}
+        {/* Floating Checkout Bar */}
         <View style={[styles.totalsBar, Shadows.large]}>
           <View style={styles.totalsInfo}>
             <View>
@@ -1205,22 +1335,23 @@ const NewOrderScreen = ({ navigation }: any) => {
             </View>
           </View>
           <TouchableOpacity 
-            style={[styles.submitBtn, isCreatingOrder && styles.submitBtnDisabled]}
+            style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
             onPress={handleSubmit}
-            disabled={isCreatingOrder}
+            disabled={isSubmitting}
+            activeOpacity={0.8}
           >
-            {isCreatingOrder ? (
-              <ActivityIndicator color={Colors.white} />
+            {isSubmitting ? (
+              <ActivityIndicator color={Colors.white} size="small" />
             ) : (
               <>
-                <Check size={20} color={Colors.white} />
-                <Text style={styles.submitBtnText}>Create Order</Text>
+                <Check size={18} color={Colors.white} />
+                <Text style={styles.submitBtnText}>{isEditing ? 'Save Changes' : 'Submit Order'}</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
 
-        {/* CUSTOMER SEARCH MODAL */}
+        {/* CUSTOMER SELECTOR MODAL */}
         <Modal
           visible={customerModalVisible}
           animationType="slide"
@@ -1228,39 +1359,40 @@ const NewOrderScreen = ({ navigation }: any) => {
         >
           <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setCustomerModalVisible(false)} style={styles.modalCloseBtn}>
-                <X size={24} color={Colors.text} />
+              <TouchableOpacity onPress={() => setCustomerModalVisible(false)} style={styles.modalCloseBtn} activeOpacity={0.7}>
+                <X size={20} color={Colors.text} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>Select Customer</Text>
+              <Text style={styles.modalTitle}>Select Client</Text>
               <TouchableOpacity 
                 style={styles.modalCreateBtn} 
                 onPress={() => {
                   setCustomerModalVisible(false);
                   setNewCustomerModalVisible(true);
                 }}
+                activeOpacity={0.7}
               >
-                <Plus size={20} color={Colors.primary} />
+                <Plus size={18} color={Colors.primary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalSearchBox}>
-              <Search size={18} color={Colors.textSecondary} />
+              <Search size={16} color={Colors.textTertiary} />
               <TextInput 
                 style={styles.modalSearchInput}
                 value={customerSearch}
                 onChangeText={setCustomerSearch}
-                placeholder="Search by customer name or phone..."
+                placeholder="Search name or phone..."
                 placeholderTextColor={Colors.textTertiary}
               />
             </View>
 
             {loadingCustomers ? (
-              <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
+              <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
             ) : (
               <FlatList
                 data={filteredCustomersList}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={{ padding: 20 }}
+                contentContainerStyle={{ padding: 18 }}
                 renderItem={({ item }) => (
                   <TouchableOpacity 
                     style={styles.customerListRow}
@@ -1268,17 +1400,18 @@ const NewOrderScreen = ({ navigation }: any) => {
                       setCustomerId(item.id);
                       setCustomerModalVisible(false);
                     }}
+                    activeOpacity={0.7}
                   >
                     <View style={styles.customerRowInfo}>
                       <Text style={styles.customerRowName}>{item.name}</Text>
                       <Text style={styles.customerRowPhone}>{item.phone}</Text>
                     </View>
-                    {customerId === item.id && <Check size={18} color={Colors.primary} />}
+                    {customerId === item.id && <Check size={16} color={Colors.primary} />}
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={
                   <View style={styles.centerBox}>
-                    <Text style={styles.emptyMsg}>No customers found</Text>
+                    <Text style={styles.emptyMsg}>No clients found</Text>
                   </View>
                 }
               />
@@ -1296,19 +1429,20 @@ const NewOrderScreen = ({ navigation }: any) => {
           <View style={styles.dialogOverlay}>
             <View style={[styles.dialogContainer, Shadows.large]}>
               <View style={styles.dialogHeader}>
-                <Text style={styles.dialogTitle}>Quick Add Customer</Text>
-                <TouchableOpacity onPress={() => setNewCustomerModalVisible(false)}>
-                  <X size={20} color={Colors.text} />
+                <Text style={styles.dialogTitle}>Quick Add Client</Text>
+                <TouchableOpacity onPress={() => setNewCustomerModalVisible(false)} activeOpacity={0.7}>
+                  <X size={18} color={Colors.text} />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ maxHeight: 300 }}>
+              <ScrollView style={{ maxHeight: 280 }}>
                 <Text style={styles.dialogInputLabel}>Full Name *</Text>
                 <TextInput 
                   style={styles.dialogTextInput}
                   value={newCustomerForm.name}
                   onChangeText={(t) => setNewCustomerForm({ ...newCustomerForm, name: t })}
-                  placeholder="Customer name"
+                  placeholder="Client name"
+                  placeholderTextColor={Colors.textTertiary}
                 />
 
                 <Text style={styles.dialogInputLabel}>Phone Number *</Text>
@@ -1317,31 +1451,34 @@ const NewOrderScreen = ({ navigation }: any) => {
                   value={newCustomerForm.phone}
                   keyboardType="phone-pad"
                   onChangeText={(t) => setNewCustomerForm({ ...newCustomerForm, phone: t })}
-                  placeholder="10-digit number"
+                  placeholder="10-digit phone"
+                  placeholderTextColor={Colors.textTertiary}
                 />
 
-                <Text style={styles.dialogInputLabel}>Delivery Address *</Text>
+                <Text style={styles.dialogInputLabel}>Address *</Text>
                 <TextInput 
-                  style={[styles.dialogTextInput, { height: 60, textAlignVertical: 'top' }]}
+                  style={[styles.dialogTextInput, { height: 50, textAlignVertical: 'top' }]}
                   value={newCustomerForm.address}
                   multiline={true}
                   onChangeText={(t) => setNewCustomerForm({ ...newCustomerForm, address: t })}
-                  placeholder="Full address"
+                  placeholder="Full delivery address"
+                  placeholderTextColor={Colors.textTertiary}
                 />
               </ScrollView>
 
               <TouchableOpacity 
-                style={[styles.dialogSubmitBtn, isSavingCustomer && { opacity: 0.7 }]}
+                style={[styles.dialogSubmitBtn, isSavingCustomer && { opacity: 0.6 }]}
                 onPress={handleSaveCustomer}
                 disabled={isSavingCustomer}
+                activeOpacity={0.8}
               >
-                {isSavingCustomer ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.dialogSubmitText}>Save Customer</Text>}
+                {isSavingCustomer ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.dialogSubmitText}>Save & Select</Text>}
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
 
-        {/* ITEMS MULTI-SELECT MODAL */}
+        {/* ITEMS SELECTOR MODAL */}
         <Modal
           visible={itemModalVisible}
           animationType="slide"
@@ -1349,31 +1486,31 @@ const NewOrderScreen = ({ navigation }: any) => {
         >
           <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setItemModalVisible(false)} style={styles.modalCloseBtn}>
-                <X size={24} color={Colors.text} />
+              <TouchableOpacity onPress={() => setItemModalVisible(false)} style={styles.modalCloseBtn} activeOpacity={0.7}>
+                <X size={20} color={Colors.text} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>Select Dishes</Text>
-              <View style={{ width: 40 }} />
+              <Text style={styles.modalTitle}>Select Menu Items</Text>
+              <View style={{ width: 36 }} />
             </View>
 
             <View style={styles.modalSearchBox}>
-              <Search size={18} color={Colors.textSecondary} />
+              <Search size={16} color={Colors.textTertiary} />
               <TextInput 
                 style={styles.modalSearchInput}
                 value={itemSearch}
                 onChangeText={setItemSearch}
-                placeholder="Search dishes (Telugu/English)..."
+                placeholder="Search dishes (English / Telugu)..."
                 placeholderTextColor={Colors.textTertiary}
               />
             </View>
 
             {loadingMenu ? (
-              <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
+              <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
             ) : (
               <FlatList
                 data={filteredMenuItemsList}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={{ padding: 15 }}
+                contentContainerStyle={{ padding: 18 }}
                 renderItem={({ item }) => {
                   let isSelected = false;
                   if (activeMealIdForItemSelection) {
@@ -1386,11 +1523,12 @@ const NewOrderScreen = ({ navigation }: any) => {
                     <TouchableOpacity 
                       style={[styles.itemRow, isSelected && styles.itemRowSelected]}
                       onPress={() => handleToggleItem(item.id)}
+                      activeOpacity={0.7}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.itemNameText, isSelected && { color: Colors.primary }]}>{item.name}</Text>
+                        <Text style={[styles.itemNameText, isSelected && { color: Colors.primaryDark }]}>{item.name}</Text>
                         {item.nameTelugu && <Text style={styles.itemTeluguText}>{item.nameTelugu}</Text>}
-                        {item.price ? <Text style={styles.itemPriceText}>Base: ₹{item.price}</Text> : null}
+                        {item.price ? <Text style={styles.itemPriceText}>Base Price: ₹{item.price}</Text> : null}
                       </View>
                       <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
                         {isSelected && <Check size={12} color={Colors.white} />}
@@ -1400,7 +1538,7 @@ const NewOrderScreen = ({ navigation }: any) => {
                 }}
                 ListEmptyComponent={
                   <View style={styles.centerBox}>
-                    <Text style={styles.emptyMsg}>No dishes found</Text>
+                    <Text style={styles.emptyMsg}>No dishes match your query</Text>
                   </View>
                 }
               />
@@ -1410,6 +1548,7 @@ const NewOrderScreen = ({ navigation }: any) => {
               <TouchableOpacity 
                 style={styles.modalFooterDoneBtn}
                 onPress={() => setItemModalVisible(false)}
+                activeOpacity={0.8}
               >
                 <Text style={styles.modalFooterDoneText}>Done Selecting</Text>
               </TouchableOpacity>
@@ -1425,434 +1564,438 @@ const NewOrderScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA'
+    backgroundColor: Colors.background,
   },
   screenHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 75,
-    paddingBottom: 15,
+    paddingHorizontal: 18,
+    paddingTop: 52,
+    paddingBottom: 14,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border
+    borderBottomColor: Colors.border,
   },
   backBtn: {
-    padding: 8,
-    marginRight: 10,
-    backgroundColor: '#F1F3F5',
-    borderRadius: 10
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   screenTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.text
+    color: Colors.text,
+    letterSpacing: -0.3,
   },
   screenSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.textSecondary,
-    fontWeight: '600'
+    marginTop: 1,
   },
   scrollContent: {
-    padding: 20
+    padding: 18,
   },
   accordionContainer: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
-    marginBottom: 16,
+    borderRadius: Radii.xl,
+    marginBottom: 14,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E9ECEF',
-    ...Shadows.small
+    borderColor: Colors.border,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: Colors.white
+    padding: 14,
+    backgroundColor: Colors.white,
   },
   sectionHeaderExpanded: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F3F5'
+    borderBottomColor: Colors.borderLight,
   },
   headerTitleRow: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   statusIndicator: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10
+    marginRight: 10,
   },
   indicatorNumber: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: Colors.textSecondary
+    color: Colors.textSecondary,
   },
   sectionTitleText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.text
-  },
-  accordionBody: {
-    padding: 16,
-    backgroundColor: '#FCFDFE'
-  },
-  inputLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.text,
+  },
+  accordionBody: {
+    padding: 14,
+    backgroundColor: Colors.white,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
     marginBottom: 6,
-    marginLeft: 2
   },
   customerSelectorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 12,
   },
   customerSelectorBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
-    height: 48,
-    paddingHorizontal: 12
+    borderColor: Colors.border,
+    height: 44,
+    paddingHorizontal: 12,
   },
   customerSelectorText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: Colors.text
+    color: Colors.text,
+    flex: 1,
   },
   quickAddBtn: {
     backgroundColor: Colors.primary,
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    marginLeft: 10,
+    width: 44,
+    height: 44,
+    borderRadius: Radii.md,
+    marginLeft: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.small
+    ...Shadows.small,
   },
   customerInfoCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFF8F2',
-    borderColor: '#FFEFE0',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.border,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16
+    borderRadius: Radii.md,
+    padding: 10,
+    marginBottom: 12,
   },
   customerAddressText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.primaryDark,
     fontWeight: '600',
-    lineHeight: 16
+    lineHeight: 16,
   },
   textInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
-    height: 48,
+    borderColor: Colors.border,
+    height: 44,
     paddingHorizontal: 12,
-    marginBottom: 16
+    marginBottom: 12,
   },
   textInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.text,
-    fontWeight: '500'
   },
   typeToggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10
+    paddingVertical: 8,
   },
   typeToggleLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
   },
   typeSelector: {
     flexDirection: 'row',
-    backgroundColor: '#F1F3F5',
-    borderRadius: 10,
-    padding: 3
+    backgroundColor: Colors.background,
+    borderRadius: Radii.sm,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   typeBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radii.sm,
   },
   typeBtnActive: {
     backgroundColor: Colors.white,
-    ...Shadows.small
+    ...Shadows.small,
   },
   typeBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSecondary
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
   typeBtnTextActive: {
-    color: Colors.primary
+    color: Colors.primaryDark,
+    fontWeight: '700',
   },
   card: {
     backgroundColor: Colors.white,
-    borderRadius: 16,
+    borderRadius: Radii.lg,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
-    marginBottom: 16,
-    overflow: 'hidden'
+    borderColor: Colors.border,
+    marginBottom: 12,
+    overflow: 'hidden',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#F8F9FA'
+    padding: 12,
+    backgroundColor: Colors.background,
   },
   cardIndexText: {
     fontSize: 9,
     fontWeight: '800',
-    color: Colors.textSecondary,
-    letterSpacing: 1
+    color: Colors.textTertiary,
+    letterSpacing: 0.5,
   },
   cardTitleText: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: Colors.text,
-    marginTop: 2
+    marginTop: 1,
   },
   cardHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15
+    gap: 10,
   },
   trashBtn: {
-    padding: 4
+    padding: 4,
   },
   cardBody: {
-    padding: 16
+    padding: 12,
   },
   cardInputLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     color: Colors.textSecondary,
     marginBottom: 6,
-    marginLeft: 2,
     textTransform: 'uppercase',
-    letterSpacing: 0.5
+    letterSpacing: 0.3,
   },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginBottom: 16
+    marginBottom: 12,
   },
   typeGridBtn: {
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#F1F3F5',
+    paddingVertical: 5,
+    borderRadius: Radii.pill,
+    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: '#E9ECEF'
+    borderColor: Colors.border,
   },
   typeGridBtnActive: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primary
+    borderColor: Colors.primary,
   },
   typeGridBtnText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
   typeGridBtnTextActive: {
-    color: Colors.white
+    color: Colors.white,
+    fontWeight: '700',
   },
   formRow: {
     flexDirection: 'row',
-    marginBottom: 12
+    marginBottom: 10,
   },
   smallInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border,
     height: 40,
-    paddingHorizontal: 8
+    paddingHorizontal: 10,
   },
   smallInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.text,
-    fontWeight: '600'
   },
   borderedInput: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border,
     height: 40,
     paddingHorizontal: 10,
     fontSize: 13,
     color: Colors.text,
-    fontWeight: '600',
-    marginBottom: 12
+    marginBottom: 10,
   },
   pricingToggleRow: {
     flexDirection: 'row',
-    backgroundColor: '#F1F3F5',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 12
+    backgroundColor: Colors.background,
+    borderRadius: Radii.sm,
+    padding: 2,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   pricingMethodBtn: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 6,
     alignItems: 'center',
-    borderRadius: 8
+    borderRadius: Radii.sm,
   },
   pricingMethodBtnActive: {
     backgroundColor: Colors.white,
-    ...Shadows.small
+    ...Shadows.small,
   },
   pricingMethodBtnText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
   pricingMethodBtnTextActive: {
-    color: Colors.primary
+    color: Colors.primaryDark,
+    fontWeight: '700',
   },
   menuSelectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 6,
-    marginBottom: 6
+    marginTop: 4,
+    marginBottom: 6,
   },
   commonItemsBtn: {
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: Colors.primaryLight,
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
   },
   commonItemsBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: Colors.primary
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.primaryDark,
   },
   selectItemsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF8F2',
+    backgroundColor: Colors.primaryLight,
     borderWidth: 1,
-    borderColor: Colors.primary + '30',
+    borderColor: Colors.primary + '40',
     borderStyle: 'dashed',
-    height: 40,
-    borderRadius: 10,
-    marginBottom: 12
+    height: 38,
+    borderRadius: Radii.md,
+    marginBottom: 10,
   },
   selectItemsBtnText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: Colors.primary
+    color: Colors.primaryDark,
   },
   selectedItemRow: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: Colors.borderLight,
     padding: 10,
-    marginBottom: 8
+    marginBottom: 6,
   },
   selectedItemDetails: {
-    flex: 1
+    flex: 1,
   },
   selectedItemName: {
     fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text
+    fontWeight: '600',
+    color: Colors.text,
   },
   selectedItemTelugu: {
     fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 2
+    color: Colors.textTertiary,
+    marginTop: 1,
   },
   customizationInput: {
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    height: 32,
+    borderBottomColor: Colors.border,
+    height: 28,
     fontSize: 11,
-    color: Colors.primary,
-    fontWeight: '600',
-    marginTop: 4,
-    padding: 0
+    color: Colors.primaryDark,
+    marginTop: 2,
+    padding: 0,
   },
   selectedItemActions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: 8,
-    gap: 12
+    marginTop: 6,
+    gap: 10,
   },
   qtyContainer: {
     flexDirection: 'row',
-    alignItems: 'center'
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   qtyLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginRight: 4
+    fontWeight: '600',
+    color: Colors.textTertiary,
+    marginRight: 4,
   },
   qtyInput: {
     backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 6,
-    width: 50,
-    height: 28,
+    borderColor: Colors.border,
+    borderRadius: Radii.sm,
+    width: 44,
+    height: 26,
     textAlign: 'center',
     fontSize: 12,
     fontWeight: '700',
-    padding: 0
+    padding: 0,
+    color: Colors.text,
   },
   removeItemBtn: {
-    padding: 4
+    padding: 4,
   },
   addSessionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.secondary,
-    height: 48,
-    borderRadius: 12,
+    height: 44,
+    borderRadius: Radii.md,
     ...Shadows.small,
-    marginTop: 10
+    marginTop: 6,
   },
   addSessionBtnText: {
     color: Colors.white,
-    fontSize: 14,
-    fontWeight: '700'
+    fontSize: 13,
+    fontWeight: '700',
   },
   addStallBtn: {
     flexDirection: 'row',
@@ -1861,51 +2004,52 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderColor: Colors.primary,
     borderWidth: 1,
-    height: 48,
-    borderRadius: 12,
-    marginTop: 10
+    height: 44,
+    borderRadius: Radii.md,
+    marginTop: 6,
   },
   addStallBtnText: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '700'
+    color: Colors.primaryDark,
+    fontSize: 13,
+    fontWeight: '700',
   },
   paymentMethodRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16
+    gap: 6,
+    marginBottom: 12,
   },
   paymentMethodTab: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F1F3F5',
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: '#E9ECEF'
+    borderColor: Colors.border,
   },
   paymentMethodTabActive: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primary
+    borderColor: Colors.primary,
   },
   paymentMethodText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSecondary
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
   paymentMethodTextActive: {
-    color: Colors.white
+    color: Colors.white,
+    fontWeight: '700',
   },
   textArea: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: Colors.border,
     padding: 10,
     fontSize: 13,
     color: Colors.text,
-    height: 80,
-    textAlignVertical: 'top'
+    height: 70,
+    textAlignVertical: 'top',
   },
   totalsBar: {
     position: 'absolute',
@@ -1913,90 +2057,94 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: '#F1F3F5',
-    padding: 16,
+    borderTopColor: Colors.border,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
   },
   totalsInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15
+    gap: 12,
   },
   vertDivider: {
     width: 1,
-    height: 36,
-    backgroundColor: '#E2E8F0'
+    height: 30,
+    backgroundColor: Colors.border,
   },
   totalLabel: {
     fontSize: 9,
-    fontWeight: '800',
-    color: Colors.textSecondary,
-    letterSpacing: 0.5
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    letterSpacing: 0.5,
   },
   totalVal: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: Colors.text
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.text,
   },
   balanceVal: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: Colors.primary
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.primaryDark,
   },
   submitBtn: {
     backgroundColor: Colors.primary,
-    height: 48,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    height: 44,
+    paddingHorizontal: 18,
+    borderRadius: Radii.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    ...Shadows.medium
+    ...Shadows.small,
   },
   submitBtnDisabled: {
-    opacity: 0.7
+    opacity: 0.6,
   },
   submitBtnText: {
     color: Colors.white,
-    fontSize: 15,
-    fontWeight: '900'
+    fontSize: 14,
+    fontWeight: '700',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border
+    borderBottomColor: Colors.border,
   },
   modalCloseBtn: {
-    padding: 4
+    padding: 4,
   },
   modalTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
-    color: Colors.text
+    color: Colors.text,
   },
   modalCreateBtn: {
-    padding: 4
+    padding: 4,
   },
   modalSearchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F3F5',
-    margin: 16,
+    backgroundColor: Colors.background,
+    marginHorizontal: 18,
+    marginVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 10,
-    height: 44
+    borderRadius: Radii.md,
+    height: 42,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   modalSearchInput: {
     flex: 1,
     marginLeft: 8,
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.text,
-    fontWeight: '500'
   },
   customerListRow: {
     flexDirection: 'row',
@@ -2004,147 +2152,149 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F3F5'
+    borderBottomColor: Colors.borderLight,
   },
   customerRowInfo: {},
   customerRowName: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.text
+    color: Colors.text,
   },
   customerRowPhone: {
     fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 2
+    color: Colors.textTertiary,
+    marginTop: 2,
   },
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 8
+    borderColor: Colors.border,
+    marginBottom: 8,
   },
   itemRowSelected: {
-    borderColor: Colors.primary + '60',
-    backgroundColor: Colors.primary + '05'
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight,
   },
   itemNameText: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.text
+    color: Colors.text,
   },
   itemTeluguText: {
     fontSize: 11,
     color: Colors.textSecondary,
-    marginTop: 2
+    marginTop: 1,
   },
   itemPriceText: {
     fontSize: 10,
-    color: Colors.primary,
+    color: Colors.primaryDark,
     fontWeight: '600',
-    marginTop: 2
+    marginTop: 2,
   },
   checkbox: {
     width: 20,
     height: 20,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#CBD5E1',
+    borderColor: Colors.border,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   checkboxSelected: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primary
+    borderColor: Colors.primary,
   },
   modalFooter: {
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    backgroundColor: Colors.white
+    backgroundColor: Colors.white,
   },
   modalFooterDoneBtn: {
     backgroundColor: Colors.primary,
-    height: 48,
-    borderRadius: 12,
+    height: 44,
+    borderRadius: Radii.md,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.medium
+    ...Shadows.small,
   },
   modalFooterDoneText: {
     color: Colors.white,
-    fontSize: 15,
-    fontWeight: '800'
+    fontSize: 14,
+    fontWeight: '700',
   },
   dialogOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20
+    padding: 20,
   },
   dialogContainer: {
     width: '100%',
     backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: 20
+    borderRadius: Radii.xl,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   dialogHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 14,
   },
   dialogTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: Colors.text
+    color: Colors.text,
   },
   dialogInputLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     color: Colors.textSecondary,
-    marginBottom: 6
+    marginBottom: 4,
   },
   dialogTextInput: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
+    borderColor: Colors.border,
+    borderRadius: Radii.md,
     height: 40,
     paddingHorizontal: 10,
     fontSize: 13,
     color: Colors.text,
-    marginBottom: 12
+    marginBottom: 10,
   },
   dialogSubmitBtn: {
     backgroundColor: Colors.primary,
-    height: 44,
-    borderRadius: 10,
+    height: 42,
+    borderRadius: Radii.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
-    ...Shadows.small
+    marginTop: 8,
+    ...Shadows.small,
   },
   dialogSubmitText: {
     color: Colors.white,
     fontSize: 14,
-    fontWeight: '800'
+    fontWeight: '700',
   },
   centerBox: {
     paddingVertical: 40,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
   emptyMsg: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '500'
-  }
+    fontSize: 12,
+    color: Colors.textTertiary,
+    fontWeight: '500',
+  },
 });
 
 export default NewOrderScreen;

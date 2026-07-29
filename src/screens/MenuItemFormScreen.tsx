@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,8 +14,8 @@ import {
   Switch,
   StatusBar,
 } from 'react-native';
-import { ArrowLeft, Layers, Tag, Info, IndianRupee, Save, Trash2, CheckCircle2 } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
+import { ArrowLeft, Layers, Tag, Info, IndianRupee, Trash2, CheckCircle2 } from 'lucide-react-native';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useToast } from '../components/Toast';
 import { useCreateMenuItemMutation, useUpdateMenuItemMutation, useDeleteMenuItemMutation } from '../services/menuApi';
 
@@ -66,7 +66,7 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
       navigation.goBack();
     } catch (error: any) {
       console.error('Error saving menu item:', error);
-      const msg = error?.data?.error || 'We couldn\'t save this item. Check your connection.';
+      const msg = error?.data?.error || 'We couldn\'t save this item.';
       showToast(msg, 'error');
     }
   };
@@ -76,7 +76,7 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
 
     Alert.alert(
       'Confirm Delete',
-      'Are you sure you want to remove this dish? This action cannot be undone.',
+      'Are you sure you want to remove this dish?',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -88,16 +88,15 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
               showToast('Item deleted successfully', 'success');
               navigation.goBack();
             } catch (error: any) {
-              console.error('Delete Error:', error);
               const backendError = error?.data?.error;
               const details = error?.data?.details;
               
               if (backendError === 'Cannot delete item') {
                 Alert.alert(
                   'Cannot Delete',
-                  details || 'This item is in use. Would you like to deactivate it instead?',
+                  details || 'This item is in use. Deactivate it instead?',
                   [
-                    { text: 'No thanks', style: 'cancel' },
+                    { text: 'Cancel', style: 'cancel' },
                     { 
                       text: 'Deactivate', 
                       onPress: () => {
@@ -131,15 +130,13 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
       <View style={styles.fieldGroup}>
         <Text style={styles.fieldLabel}>{label}</Text>
         <View style={[styles.fieldContent, multiline && styles.fieldArea]}>
-          <View style={styles.fieldIcon}>
-            <Icon size={18} color={Colors.textSecondary} />
-          </View>
+          <Icon size={16} color={Colors.textTertiary} style={styles.inputIcon} />
           <TextInput
             style={[styles.fieldText, multiline && styles.fieldInputArea]}
             value={value}
             onChangeText={onChangeText}
             placeholder={placeholder}
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={Colors.textTertiary}
             keyboardType={keyboardType}
             multiline={multiline}
           />
@@ -155,43 +152,46 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <View style={styles.premiumHeader}>
+        <View style={styles.header}>
           <TouchableOpacity 
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')} 
             style={styles.navBtn}
+            activeOpacity={0.7}
           >
-            <ArrowLeft size={24} color={Colors.text} />
+            <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
           <View style={styles.headerInfo}>
-             <Text style={styles.headerTitle}>{isEditing ? 'Update Dish' : 'Add New Item'}</Text>
-             <Text style={styles.headerSub}>{isEditing ? 'Modify existing menu data' : 'Expand your catering menu'}</Text>
+             <Text style={styles.headerTitle}>{isEditing ? 'Edit Dish' : 'Add Dish'}</Text>
+             <Text style={styles.headerSub}>{isEditing ? 'Modify dish details' : 'Add to catering menu'}</Text>
           </View>
           {isEditing && (
             <TouchableOpacity 
               style={styles.deleteBtn} 
               onPress={handleDelete}
               disabled={loading}
+              activeOpacity={0.7}
             >
-              <Trash2 size={22} color={Colors.error} />
+              <Trash2 size={18} color={Colors.error} />
             </TouchableOpacity>
           )}
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.formSection}>
-            <Text style={styles.sectionTitle}>Basic Information</Text>
+          <View style={[styles.formSection, Shadows.small]}>
+            <Text style={styles.sectionTitle}>Basic Details</Text>
             
-            {renderInput('Dish Name', formData.name, (t) => setFormData({...formData, name: t}), 'Enter menu item name...', Layers)}
-            {renderInput('Telugu Name', formData.nameTelugu, (t) => setFormData({...formData, nameTelugu: t}), 'తెలుగులో పేరు (ఐచ్ఛికం)', Tag)}
+            {renderInput('Dish Name *', formData.name, (t) => setFormData({...formData, name: t}), 'Enter dish name', Layers)}
+            {renderInput('Telugu Name', formData.nameTelugu, (t) => setFormData({...formData, nameTelugu: t}), 'తెలుగు పేరు', Tag)}
             
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Category / Type</Text>
+              <Text style={styles.fieldLabel}>Category</Text>
               <View style={styles.categoryGrid}>
                 {CATEGORIES.map(cat => (
                   <TouchableOpacity
                     key={cat}
                     onPress={() => setFormData({ ...formData, type: cat })}
                     style={[styles.categoryTab, formData.type === cat && styles.activeTab]}
+                    activeOpacity={0.7}
                   >
                     <Text style={[styles.categoryText, formData.type === cat && styles.activeTabText]}>{cat}</Text>
                   </TouchableOpacity>
@@ -200,52 +200,52 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
             </View>
           </View>
 
-          <View style={styles.formSection}>
-            <Text style={styles.sectionTitle}>Pricing & Details</Text>
+          <View style={[styles.formSection, Shadows.small]}>
+            <Text style={styles.sectionTitle}>Pricing</Text>
             
             <View style={styles.rowFields}>
               <View style={{ flex: 1.5 }}>
-                {renderInput('Base Price', formData.price, (t) => setFormData({...formData, price: t}), '0.00', IndianRupee, 'numeric')}
+                {renderInput('Base Price (₹) *', formData.price, (t) => setFormData({...formData, price: t}), '0.00', IndianRupee, 'numeric')}
               </View>
               <View style={{ flex: 1 }}>
                 {renderInput('Unit', formData.unit, (t) => setFormData({...formData, unit: t}), 'PLATE/KG', Info)}
               </View>
             </View>
 
-            {renderInput('Description', formData.description, (t) => setFormData({...formData, description: t}), 'Brief details about the dish...', Info, 'default', true)}
+            {renderInput('Description', formData.description, (t) => setFormData({...formData, description: t}), 'Brief item description...', Info, 'default', true)}
           </View>
 
-          <View style={styles.formSection}>
-            <Text style={styles.sectionTitle}>Configuration</Text>
+          <View style={[styles.formSection, Shadows.small]}>
+            <Text style={styles.sectionTitle}>Settings</Text>
             
             <View style={styles.toggleRow}>
               <View>
                 <Text style={styles.toggleLabel}>Common Item</Text>
-                <Text style={styles.toggleSub}>Always visible in quick selectors</Text>
+                <Text style={styles.toggleSub}>Fast selector item</Text>
               </View>
               <Switch
                 value={formData.isCommon}
                 onValueChange={(v) => setFormData({...formData, isCommon: v})}
-                trackColor={{ false: '#E2E8F0', true: Colors.primary + '80' }}
-                thumbColor={formData.isCommon ? Colors.primary : '#F8FAFC'}
+                trackColor={{ false: Colors.border, true: Colors.primaryLight }}
+                thumbColor={formData.isCommon ? Colors.primary : Colors.textTertiary}
               />
             </View>
 
             <View style={styles.toggleRow}>
               <View>
                 <Text style={styles.toggleLabel}>Active Status</Text>
-                <Text style={styles.toggleSub}>Enable or disable this item from menu</Text>
+                <Text style={styles.toggleSub}>Visible in menu</Text>
               </View>
               <Switch
                 value={formData.isActive}
                 onValueChange={(v) => setFormData({...formData, isActive: v})}
-                trackColor={{ false: '#E2E8F0', true: Colors.success + '80' }}
-                thumbColor={formData.isActive ? '#22C55E' : '#F8FAFC'}
+                trackColor={{ false: Colors.border, true: Colors.successLight }}
+                thumbColor={formData.isActive ? Colors.success : Colors.textTertiary}
               />
             </View>
           </View>
 
-          <View style={{ height: 100 }} />
+          <View style={{ height: 40 }} />
         </ScrollView>
 
         <View style={styles.actionFooter}>
@@ -253,9 +253,10 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
              style={[styles.confirmBtn, loading && styles.btnDisabled]} 
              onPress={handleSave}
              disabled={loading}
+             activeOpacity={0.8}
            >
-             {loading ? <ActivityIndicator color={Colors.white} /> : <CheckCircle2 size={24} color={Colors.white} />}
-             <Text style={styles.confirmText}>{isEditing ? 'Update Menu Item' : 'Save Dish to Menu'}</Text>
+             {loading ? <ActivityIndicator color={Colors.white} size="small" /> : <CheckCircle2 size={18} color={Colors.white} />}
+             <Text style={styles.confirmText}>{isEditing ? 'Update Dish' : 'Save Dish'}</Text>
            </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -266,177 +267,177 @@ const MenuItemFormScreen = ({ route, navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Colors.background,
   },
-  premiumHeader: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 75,
-    paddingBottom: 20,
+    paddingHorizontal: 18,
+    paddingTop: 52,
+    paddingBottom: 14,
     backgroundColor: Colors.white,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    ...Shadows.small,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   navBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   headerInfo: {
     flex: 1,
   },
   deleteBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.error + '10',
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.errorLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '900',
+    fontSize: 18,
+    fontWeight: '800',
     color: Colors.text,
+    letterSpacing: -0.3,
   },
   headerSub: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.textSecondary,
-    marginTop: 2,
-    fontWeight: '600',
+    marginTop: 1,
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: 18,
   },
   formSection: {
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: Colors.primary,
-    marginBottom: 20,
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primaryDark,
+    marginBottom: 12,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   fieldGroup: {
-    marginBottom: 20,
+    marginBottom: 12,
   },
   fieldLabel: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
     color: Colors.textSecondary,
-    marginBottom: 8,
-    marginLeft: 4,
+    marginBottom: 6,
   },
   fieldContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border,
+    paddingHorizontal: 12,
+  },
+  inputIcon: {
+    marginRight: 8,
   },
   fieldArea: {
     alignItems: 'flex-start',
-    paddingTop: 12,
-  },
-  fieldIcon: {
-    paddingHorizontal: 15,
+    paddingTop: 10,
   },
   fieldText: {
     flex: 1,
-    height: 50,
-    fontSize: 15,
+    height: 42,
+    fontSize: 14,
     color: Colors.text,
-    fontWeight: '600',
   },
   fieldInputArea: {
-    height: 100,
+    height: 80,
     textAlignVertical: 'top',
   },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   categoryTab: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: Radii.pill,
+    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border,
   },
   activeTab: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
   categoryText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
   activeTabText: {
     color: Colors.white,
+    fontWeight: '700',
   },
   rowFields: {
     flexDirection: 'row',
-    gap: 15,
+    gap: 10,
   },
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: Colors.borderLight,
   },
   toggleLabel: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: Colors.text,
   },
   toggleSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-    marginTop: 2,
+    fontSize: 11,
+    color: Colors.textTertiary,
+    marginTop: 1,
   },
   actionFooter: {
-    padding: 24,
+    padding: 18,
     backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: Colors.border,
   },
   confirmBtn: {
     backgroundColor: Colors.primary,
-    height: 60,
-    borderRadius: 20,
+    height: 48,
+    borderRadius: Radii.md,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
-    ...Shadows.medium,
+    gap: 8,
+    ...Shadows.small,
   },
   btnDisabled: {
     opacity: 0.6,
   },
   confirmText: {
     color: Colors.white,
-    fontSize: 17,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 

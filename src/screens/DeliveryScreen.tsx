@@ -9,13 +9,10 @@ import {
   Modal,
   FlatList,
   Alert,
-  Linking,
-  Image
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-const LOGO = require('../assets/icon.png');
 import * as Location from 'expo-location';
-import Constants from 'expo-constants';
 import {
   MapPin,
   Truck,
@@ -27,7 +24,7 @@ import {
   CheckCircle2,
   X
 } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useGetOrdersQuery } from '../services/orderApi';
 import { useGetWorkforceQuery } from '../services/adminApi';
 import { trackingService } from '../services/trackingService';
@@ -39,9 +36,9 @@ const DeliveryItem = ({ order }: { order: Order }) => {
   const isOut = status === 'OUT_FOR_DELIVERY';
 
   return (
-    <TouchableOpacity style={[styles.deliveryCard, Shadows.small]}>
+    <TouchableOpacity style={[styles.deliveryCard, Shadows.small]} activeOpacity={0.8}>
       <View style={styles.cardHeader}>
-        <View style={[styles.statusBadge, { backgroundColor: isOut ? Colors.success + '15' : Colors.warning + '15' }]}>
+        <View style={[styles.statusBadge, { backgroundColor: isOut ? Colors.successLight : Colors.warningLight }]}>
           <View style={[styles.statusDot, { backgroundColor: isOut ? Colors.success : Colors.warning }]} />
           <Text style={[styles.statusText, { color: isOut ? Colors.success : Colors.warning }]}>
             {status === 'OUT_FOR_DELIVERY' ? 'Out for Delivery' : status}
@@ -53,7 +50,7 @@ const DeliveryItem = ({ order }: { order: Order }) => {
       <View style={styles.cardBody}>
         <View style={styles.infoRow}>
           <View style={styles.iconBox}>
-            <Truck size={20} color={Colors.primary} />
+            <Truck size={18} color={Colors.primary} />
           </View>
           <View style={styles.infoText}>
             <Text style={styles.customerName}>{order.customer?.name || 'Customer'}</Text>
@@ -62,19 +59,19 @@ const DeliveryItem = ({ order }: { order: Order }) => {
         </View>
 
         <View style={styles.locationRow}>
-          <MapPin size={16} color={Colors.textTertiary} />
+          <MapPin size={14} color={Colors.textTertiary} />
           <Text style={styles.locationText} numberOfLines={1}>{order.address || 'No address provided'}</Text>
         </View>
       </View>
 
       <View style={styles.cardActions}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Phone size={16} color={Colors.primary} />
+        <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+          <Phone size={15} color={Colors.primary} />
           <Text style={styles.actionButtonText}>Call</Text>
         </TouchableOpacity>
         <View style={styles.actionDivider} />
-        <TouchableOpacity style={styles.actionButton}>
-          <Navigation size={16} color={Colors.primary} />
+        <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+          <Navigation size={15} color={Colors.primary} />
           <Text style={styles.actionButtonText}>Route</Text>
         </TouchableOpacity>
       </View>
@@ -87,7 +84,7 @@ const DeliveryScreen = ({ navigation }: any) => {
   const isAdmin = user?.role === 'superadmin';
 
   const { data: orders = [], isLoading: isLoadingOrders, refetch: refetchOrders } = useGetOrdersQuery();
-  const { data: workforce = [], isLoading: isLoadingWorkforce } = useGetWorkforceQuery();
+  const { data: workforce = [] } = useGetWorkforceQuery();
 
   const [isTracking, setIsTracking] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
@@ -113,7 +110,6 @@ const DeliveryScreen = ({ navigation }: any) => {
     Linking.openURL(url);
   };
 
-  // Filter for transport workforce
   const transportDrivers = React.useMemo(() => {
     if (!Array.isArray(workforce)) return [];
     return workforce.filter((w: any) => w.role === 'transport' && w.isActive);
@@ -141,17 +137,15 @@ const DeliveryScreen = ({ navigation }: any) => {
 
     if (isTracking) {
       if (!isAdmin) {
-        Alert.alert('Access Denied', 'Only main administrators can stop a live trip tracking session once it is initiated.');
+        Alert.alert('Access Denied', 'Only main administrators can stop a live trip tracking session.');
         return;
       }
-      // Stop Tracking
       await trackingService.stopTracking();
       setIsTracking(false);
     } else {
-      // Start Tracking
       try {
         trackingService.setToken(selectedDriver.trackingToken);
-        const res = await trackingService.startTracking();
+        await trackingService.startTracking();
         setIsTracking(true);
       } catch (err: any) {
         Alert.alert('Tracking Error', err.message || 'Failed to start GPS tracking.');
@@ -166,27 +160,25 @@ const DeliveryScreen = ({ navigation }: any) => {
           <TouchableOpacity
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}
             style={styles.backBtn}
+            activeOpacity={0.7}
           >
-            <ArrowLeft size={24} color={Colors.text} />
+            <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
-          <View style={styles.logoContainer}>
-            <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.title}>Logistics</Text>
-            <Text style={styles.subtitle}>{deliveryOrders.length} active operations</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Delivery & Logistics</Text>
+            <Text style={styles.subtitle}>{deliveryOrders.length} active delivery tasks</Text>
           </View>
         </View>
       </View>
 
       {/* Driver Cockpit */}
-      <View style={styles.cockpitContainer}>
+      <View style={[styles.cockpitContainer, Shadows.small]}>
         <View style={styles.cockpitHeader}>
-          <Text style={styles.cockpitTitle}>Driver Identity</Text>
-          <TouchableOpacity onPress={() => setShowDriverModal(true)} style={styles.driverSelectBtn}>
-            <User size={14} color={Colors.primary} />
+          <Text style={styles.cockpitTitle}>Driver Profile</Text>
+          <TouchableOpacity onPress={() => setShowDriverModal(true)} style={styles.driverSelectBtn} activeOpacity={0.7}>
+            <User size={14} color={Colors.primaryDark} />
             <Text style={styles.driverSelectText}>
-              {selectedDriver ? selectedDriver.name : 'Select Driver'}
+              {selectedDriver ? selectedDriver.name : 'Select Profile'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -195,31 +187,32 @@ const DeliveryScreen = ({ navigation }: any) => {
           <View style={styles.trackingStatus}>
             <View style={[styles.pulseDot, isTracking ? styles.pulseDotActive : {}]} />
             <Text style={styles.trackingStatusText}>
-              {isTracking ? 'GPS Tracking Active' : 'Tracking Offline'}
+              {isTracking ? 'GPS Tracking Live' : 'Tracking Offline'}
             </Text>
           </View>
           <TouchableOpacity
             style={[styles.trackToggleBtn, isTracking ? styles.trackToggleBtnStop : {}]}
             onPress={handleToggleTracking}
+            activeOpacity={0.8}
           >
-            <Navigation size={18} color={isTracking ? Colors.error : Colors.white} />
+            <Navigation size={16} color={isTracking ? Colors.error : Colors.white} />
             <Text style={[styles.trackToggleText, isTracking && { color: Colors.error }]}>
-              {isTracking ? 'Stop' : 'Start'} Tracking
+              {isTracking ? 'Stop' : 'Start'}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Navigation Map Card */}
+      {/* Map Card */}
       {isTracking && currentLocation && (
-        <View style={styles.mapCard}>
+        <View style={[styles.mapCard, Shadows.small]}>
           <View style={styles.mapCardHeader}>
             <View style={styles.liveIndicator}>
               <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE SESSION ACTIVE</Text>
+              <Text style={styles.liveText}>GPS SESSION ACTIVE</Text>
             </View>
             <Text style={styles.coordText}>
-              {currentLocation.lat.toFixed(5)}, {currentLocation.lng.toFixed(5)}
+              {currentLocation.lat.toFixed(4)}, {currentLocation.lng.toFixed(4)}
             </Text>
           </View>
           {deliveryOrders.slice(0, 3).map(order => (
@@ -227,34 +220,36 @@ const DeliveryScreen = ({ navigation }: any) => {
               key={order.id}
               style={styles.navItem}
               onPress={() => handleOpenNavigation(order)}
+              activeOpacity={0.7}
             >
               <View style={styles.navIconBox}>
-                <Navigation size={16} color={Colors.primary} />
+                <Navigation size={14} color={Colors.primary} />
               </View>
               <View style={styles.navInfo}>
                 <Text style={styles.navCustomer}>{order.customer?.name}</Text>
                 <Text style={styles.navAddress} numberOfLines={1}>{order.address || 'No address'}</Text>
               </View>
-              <Text style={styles.navOpenText}>Open ›</Text>
+              <Text style={styles.navOpenText}>Navigate ›</Text>
             </TouchableOpacity>
           ))}
         </View>
       )}
+
       {!isTracking && (
         <View style={styles.mapOfflineCard}>
-          <Navigation size={32} color={Colors.textTertiary} />
-          <Text style={styles.mapOfflineText}>Start tracking to see live navigation</Text>
+          <Navigation size={24} color={Colors.textTertiary} />
+          <Text style={styles.mapOfflineText}>Start tracking session to see live navigation routes</Text>
         </View>
       )}
 
-      {/* Select Driver Modal */}
-      <Modal visible={showDriverModal} animationType="slide" transparent={true}>
+      {/* Driver Modal */}
+      <Modal visible={showDriverModal} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Profile</Text>
+              <Text style={styles.modalTitle}>Select Driver</Text>
               <TouchableOpacity onPress={() => setShowDriverModal(false)}>
-                <X size={24} color={Colors.textSecondary} />
+                <X size={20} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -266,19 +261,19 @@ const DeliveryScreen = ({ navigation }: any) => {
                   onPress={() => {
                     setSelectedDriver(item);
                     if (isTracking && selectedDriver?.id !== item.id) {
-                      // Stop tracking if they switch profiles
                       trackingService.stopTracking();
                       setIsTracking(false);
                     }
                     setShowDriverModal(false);
                   }}
+                  activeOpacity={0.7}
                 >
-                  <User size={20} color={selectedDriver?.id === item.id ? Colors.primary : Colors.textSecondary} />
-                  <Text style={[styles.driverName, selectedDriver?.id === item.id && { color: Colors.primary, fontWeight: '700' }]}>{item.name}</Text>
-                  {selectedDriver?.id === item.id && <CheckCircle2 size={20} color={Colors.primary} />}
+                  <User size={18} color={selectedDriver?.id === item.id ? Colors.primary : Colors.textSecondary} />
+                  <Text style={[styles.driverName, selectedDriver?.id === item.id && { color: Colors.primaryDark, fontWeight: '700' }]}>{item.name}</Text>
+                  {selectedDriver?.id === item.id && <CheckCircle2 size={18} color={Colors.primary} />}
                 </TouchableOpacity>
               )}
-              ListEmptyComponent={<Text style={styles.emptyText}>No transport profiles found.</Text>}
+              ListEmptyComponent={<Text style={styles.emptyText}>No driver profiles available</Text>}
             />
           </View>
         </View>
@@ -286,7 +281,7 @@ const DeliveryScreen = ({ navigation }: any) => {
 
       <View style={styles.listHeader}>
         <Text style={styles.sectionTitle}>Active Queue</Text>
-        <TouchableOpacity onPress={refetchOrders}>
+        <TouchableOpacity onPress={refetchOrders} activeOpacity={0.7}>
           <Text style={styles.viewAll}>Refresh</Text>
         </TouchableOpacity>
       </View>
@@ -303,9 +298,9 @@ const DeliveryScreen = ({ navigation }: any) => {
             <DeliveryItem key={order.id} order={order} />
           ))
         ) : (
-          <View style={{ alignItems: 'center', marginTop: 40 }}>
-            <Package size={48} color={Colors.textTertiary} opacity={0.5} />
-            <Text style={{ marginTop: 10, color: Colors.textSecondary }}>No deliveries in progress</Text>
+          <View style={styles.emptyBox}>
+            <Package size={40} color={Colors.border} />
+            <Text style={styles.emptyText}>No deliveries in queue</Text>
           </View>
         )}
         <View style={{ height: 20 }} />
@@ -320,374 +315,347 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    paddingTop: 75,
+    paddingHorizontal: 18,
+    paddingTop: 52,
+    paddingBottom: 14,
     backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   backBtn: {
-    padding: 8,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    marginRight: 15,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: Colors.text,
+    letterSpacing: -0.4,
   },
   subtitle: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  logoContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.small,
-    padding: 4,
-  },
-  headerLogo: {
-    width: '100%',
-    height: '100%',
-  },
-  mapPlaceholder: {
-    height: 200,
-    margin: 20,
-    borderRadius: 24,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-    ...Shadows.small,
-  },
-  mapInner: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.primary + '05',
-  },
-  mapText: {
-    marginTop: 10,
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  mapButton: {
-    marginTop: 15,
-    backgroundColor: Colors.white,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  mapButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
+    marginTop: 1,
   },
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 15,
+    paddingHorizontal: 18,
+    marginBottom: 10,
+    marginTop: 4,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
     color: Colors.text,
   },
   viewAll: {
     color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
   },
   deliveryCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: Colors.white,
+    borderRadius: Radii.xl,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 6,
+    marginRight: 5,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
   timeText: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.textTertiary,
     fontWeight: '500',
   },
   cardBody: {
-    marginBottom: 15,
+    marginBottom: 12,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: Colors.primary + '10',
+    width: 36,
+    height: 36,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
-  infoText: {},
+  infoText: {
+    flex: 1,
+  },
   customerName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.text,
   },
   orderLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: 1,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.background,
-    padding: 10,
-    borderRadius: 12,
+    padding: 8,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   locationText: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.textSecondary,
-    marginLeft: 8,
+    marginLeft: 6,
     flex: 1,
   },
   cardActions: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingTop: 12,
+    borderTopColor: Colors.borderLight,
+    paddingTop: 10,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primaryDark,
   },
   actionDivider: {
     width: 1,
-    height: 20,
-    backgroundColor: Colors.border,
+    height: 18,
+    backgroundColor: Colors.borderLight,
   },
   cockpitContainer: {
-    margin: 20,
+    margin: 18,
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 20,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cockpitHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   cockpitTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: Colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textTertiary,
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   driverSelectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary + '15',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 6,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+    gap: 4,
   },
   driverSelectText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
-    color: Colors.primary,
+    color: Colors.primaryDark,
   },
   trackingBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: 15,
-    borderRadius: 16,
+    backgroundColor: Colors.background,
+    padding: 10,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   trackingStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   pulseDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: Colors.textTertiary,
   },
   pulseDotActive: {
     backgroundColor: Colors.success,
   },
   trackingStatusText: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
     color: Colors.text,
   },
   trackToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: Radii.md,
+    gap: 4,
   },
   trackToggleBtnStop: {
-    backgroundColor: Colors.error + '15',
+    backgroundColor: Colors.errorLight,
   },
   trackToggleText: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 12,
+    fontWeight: '700',
     color: Colors.white,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: Colors.white,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 25,
-    maxHeight: '70%',
+    borderTopLeftRadius: Radii.xl,
+    borderTopRightRadius: Radii.xl,
+    padding: 20,
+    maxHeight: '65%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
     color: Colors.text,
   },
   driverItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: Colors.surface,
-    marginBottom: 10,
-    gap: 12,
+    padding: 12,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    marginBottom: 8,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   driverItemActive: {
-    backgroundColor: Colors.primary + '15',
-    borderWidth: 1,
-    borderColor: Colors.primary + '30',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
   driverName: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: Colors.text,
   },
   emptyText: {
     textAlign: 'center',
-    color: Colors.textSecondary,
-    marginTop: 20,
+    color: Colors.textTertiary,
+    marginTop: 16,
+    fontSize: 13,
   },
   mapCard: {
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginHorizontal: 18,
+    marginBottom: 14,
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 16,
-    ...Shadows.medium,
+    borderRadius: Radii.xl,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   mapCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
-    paddingBottom: 12,
+    marginBottom: 10,
+    paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.borderLight,
   },
   liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: Colors.success,
   },
   liveText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
     color: Colors.success,
     letterSpacing: 0.5,
   },
   coordText: {
-    fontSize: 11,
+    fontSize: 10,
     color: Colors.textTertiary,
-    fontFamily: 'monospace',
   },
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    gap: 12,
+    paddingVertical: 8,
+    gap: 10,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.borderLight,
   },
   navIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: Colors.primary + '15',
+    width: 28,
+    height: 28,
+    borderRadius: Radii.sm,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -695,38 +663,41 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   navCustomer: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
     color: Colors.text,
   },
   navAddress: {
-    fontSize: 12,
-    color: Colors.textSecondary,
+    fontSize: 11,
+    color: Colors.textTertiary,
     marginTop: 1,
   },
   navOpenText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
-    color: Colors.primary,
+    color: Colors.primaryDark,
   },
   mapOfflineCard: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    backgroundColor: Colors.surface,
-    borderRadius: 24,
-    paddingVertical: 24,
+    marginHorizontal: 18,
+    marginBottom: 14,
+    backgroundColor: Colors.white,
+    borderRadius: Radii.xl,
+    paddingVertical: 18,
     alignItems: 'center',
-    gap: 10,
-    borderWidth: 1.5,
+    gap: 6,
+    borderWidth: 1,
     borderColor: Colors.border,
     borderStyle: 'dashed',
   },
   mapOfflineText: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.textTertiary,
     fontWeight: '500',
   },
+  emptyBox: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
 });
-
 
 export default DeliveryScreen;

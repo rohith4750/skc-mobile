@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,49 +9,43 @@ import {
   RefreshControl,
   TextInput,
   ScrollView,
-  Image
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-const LOGO = require('../assets/icon.png');
 import { 
-  LayoutDashboard, 
   Plus, 
   Search, 
-  ShoppingBag, 
-  CheckCircle2, 
-  Clock, 
   AlertTriangle, 
-  MapPin, 
-  Phone, 
   ChevronRight,
-  Filter,
   Package, 
   Calendar, 
-  User,
-  ArrowLeft
+  ArrowLeft,
+  Edit3,
+  Trash2
 } from 'lucide-react-native';
-import Constants from 'expo-constants';
-import { Colors, Shadows } from '../theme/colors';
-import { useGetOrdersQuery } from '../services/orderApi';
+import { Colors, Shadows, Radii } from '../theme/colors';
+import { useGetOrdersQuery, useDeleteOrderMutation } from '../services/orderApi';
+import { useToast } from '../components/Toast';
 import { Order } from '../types';
 
 const STATUS_FILTERS = ['ALL', 'QUOTATION', 'PENDING', 'IN PROGRESS', 'COMPLETED', 'CANCELLED'];
 
 const OrdersScreen = ({ navigation }: any) => {
+  const { showToast } = useToast();
+  const [selectedFilter, setSelectedFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('ALL');
 
-  // New High-Performance Data Fetching
   const { 
     data: orders = [], 
     isLoading, 
     isFetching, 
-    error: apiError, 
+    error,
     refetch 
   } = useGetOrdersQuery(undefined, {
-    pollingInterval: 30000, // Still auto-refreshing every 30s
-    refetchOnMountOrArgChange: true
+    refetchOnMountOrArgChange: true,
   });
+
+  const [deleteOrder, { isLoading: isDeleting }] = useDeleteOrderMutation();
 
   const onRefresh = useCallback(() => {
     refetch();
@@ -61,46 +55,65 @@ const OrdersScreen = ({ navigation }: any) => {
     setSearchQuery(text);
   }, []);
 
-  const handleFilterChange = useCallback((filter: string) => {
-    setActiveFilter(filter);
-  }, []);
-
-  const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
-      const matchesSearch = 
-        order.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.id.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesFilter = () => {
-        if (activeFilter === 'ALL') return true;
-        const status = order.status?.toUpperCase() || '';
-        const filter = activeFilter.toUpperCase();
-        
-        // Match specific mappings
-        if (filter === 'IN PROGRESS' && (status === 'IN_PROGRESS' || status === 'IN PROGRESS' || status === 'PREPARING')) return true;
-        if (filter === 'COMPLETED' && (status === 'COMPLETED' || status === 'DELIVERED')) return true;
-        
-        return status === filter;
-      };
-      
-      return matchesSearch && matchesFilter();
-    });
-  }, [orders, searchQuery, activeFilter]);
+  const handleDeleteOrder = (order: Order) => {
+    Alert.alert(
+      'Delete Order',
+      `Are you sure you want to delete Order #${order.id.slice(-6).toUpperCase()}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              await deleteOrder(order.id).unwrap();
+              showToast('Order deleted successfully', 'success');
+            } catch (err) {
+              Alert.alert('Error', 'Failed to delete order');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const getStatusStyle = (status: string) => {
     const s = status?.toUpperCase();
     switch (s) {
       case 'COMPLETED':
-      case 'DELIVERED': return { color: '#2E7D32', bg: '#E8F5E9' };
-      case 'PENDING': return { color: '#E65100', bg: '#FFF3E0' };
-      case 'QUOTATION': return { color: '#1565C0', bg: '#E3F2FD' };
+      case 'DELIVERED': return { bg: Colors.successLight, color: Colors.success };
+      case 'PENDING': return { bg: Colors.warningLight, color: Colors.warning };
+      case 'QUOTATION': return { bg: Colors.infoLight, color: Colors.info };
       case 'IN_PROGRESS':
       case 'IN PROGRESS':
-      case 'PREPARING': return { color: Colors.primary, bg: Colors.primary + '15' };
-      case 'CANCELLED': return { color: Colors.error, bg: Colors.error + '15' };
-      default: return { color: Colors.textSecondary, bg: '#F1F3F5' };
+      case 'PREPARING': return { bg: Colors.primaryLight, color: Colors.primaryDark };
+      case 'CANCELLED': return { bg: Colors.errorLight, color: Colors.error };
+      default: return { bg: Colors.surfaceSubtle, color: Colors.textSecondary };
     }
   };
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchSearch = searchQuery === '' || 
+        order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.customer?.phone?.includes(searchQuery);
+
+      const status = order.status?.toUpperCase() || '';
+      let matchFilter = true;
+      if (selectedFilter !== 'ALL') {
+        if (selectedFilter === 'IN PROGRESS') {
+          matchFilter = status === 'IN_PROGRESS' || status === 'IN PROGRESS' || status === 'PREPARING';
+        } else if (selectedFilter === 'COMPLETED') {
+          matchFilter = status === 'COMPLETED' || status === 'DELIVERED';
+        } else {
+          matchFilter = status === selectedFilter;
+        }
+      }
+
+      return matchSearch && matchFilter;
+    });
+  }, [orders, searchQuery, selectedFilter]);
 
   const renderOrderItem = ({ item }: { item: Order }) => {
     const statusStyle = getStatusStyle(item.status);
@@ -108,7 +121,7 @@ const OrdersScreen = ({ navigation }: any) => {
     
     return (
       <TouchableOpacity 
-        style={styles.orderCard}
+        style={[styles.orderCard, Shadows.small]}
         onPress={() => navigation.navigate('OrderDetail', { order: item })}
         activeOpacity={0.8}
       >
@@ -130,7 +143,7 @@ const OrdersScreen = ({ navigation }: any) => {
            <View style={styles.customerDetails}>
               <Text style={styles.customerName}>{item.customer?.name || 'Standard Customer'}</Text>
               <View style={styles.dateRow}>
-                 <Calendar size={12} color={Colors.textSecondary} />
+                 <Calendar size={12} color={Colors.textTertiary} />
                  <Text style={styles.dateText}>
                     {date ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'}
                  </Text>
@@ -141,13 +154,42 @@ const OrdersScreen = ({ navigation }: any) => {
         <View style={styles.itemsBox}>
            <Package size={14} color={Colors.primary} />
            <Text style={styles.itemsText} numberOfLines={1}>
-              {item.items.length} {item.items.length === 1 ? 'Item' : 'Items'} • {item.items.map((i: any) => i.menuItem?.name || i.name || 'Item').join(', ')}
+              {item.items.length} {item.items.length === 1 ? 'item' : 'items'} • {item.items.map((i: any) => i.menuItem?.name || i.name || 'Item').join(', ')}
            </Text>
         </View>
 
         <View style={styles.cardFooter}>
-           <Text style={styles.priceLabel}>TOTAL AMOUNT</Text>
-           <Text style={styles.priceValue}>₹{Number(item.totalAmount || 0).toLocaleString('en-IN')}</Text>
+           <View>
+             <Text style={styles.priceLabel}>TOTAL</Text>
+             <Text style={styles.priceValue}>₹{Number(item.totalAmount || 0).toLocaleString('en-IN')}</Text>
+           </View>
+
+           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+             <TouchableOpacity 
+               style={styles.editCardBtn}
+               onPress={(e) => {
+                 e.stopPropagation?.();
+                 navigation.navigate('NewOrder', { orderToEdit: item });
+               }}
+               activeOpacity={0.7}
+             >
+               <Edit3 size={13} color={Colors.primaryDark} />
+               <Text style={styles.editCardText}>Edit</Text>
+             </TouchableOpacity>
+
+             <TouchableOpacity 
+               style={styles.deleteCardBtn}
+               onPress={(e) => {
+                 e.stopPropagation?.();
+                 handleDeleteOrder(item);
+               }}
+               activeOpacity={0.7}
+             >
+               <Trash2 size={13} color={Colors.error} />
+             </TouchableOpacity>
+
+             <ChevronRight size={18} color={Colors.textTertiary} />
+           </View>
         </View>
       </TouchableOpacity>
     );
@@ -160,34 +202,54 @@ const OrdersScreen = ({ navigation }: any) => {
           <TouchableOpacity 
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}
             style={styles.backBtn}
+            activeOpacity={0.7}
           >
-            <ArrowLeft size={24} color={Colors.text} />
+            <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.mainTitle}>Order Dashboard</Text>
-          <View style={styles.logoContainer}>
-            <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mainTitle}>Orders</Text>
+            <Text style={styles.subtitleText}>Showing {filteredOrders.length} of {orders.length} orders</Text>
           </View>
+          <TouchableOpacity 
+            style={styles.createBtn}
+            onPress={() => navigation.navigate('NewOrder')}
+            activeOpacity={0.8}
+          >
+            <Plus size={18} color={Colors.white} />
+            <Text style={styles.createBtnText}>New</Text>
+          </TouchableOpacity>
         </View>
         
         <View style={styles.searchBar}>
-          <Search size={18} color={Colors.textSecondary} />
+          <Search size={18} color={Colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by ID or name..."
+            placeholder="Search by ID or customer..."
             value={searchQuery}
             onChangeText={handleSearch}
-            placeholderTextColor="#999"
+            placeholderTextColor={Colors.textTertiary}
           />
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterContent}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.filterScroll}
+        >
           {STATUS_FILTERS.map(filter => (
-            <TouchableOpacity 
+            <TouchableOpacity
               key={filter}
-              style={[styles.filterPill, activeFilter === filter && styles.activePill]}
-              onPress={() => handleFilterChange(filter)}
+              style={[
+                styles.filterChip,
+                selectedFilter === filter && styles.filterChipActive
+              ]}
+              onPress={() => setSelectedFilter(filter)}
+              activeOpacity={0.7}
             >
-              <Text style={[styles.pillText, activeFilter === filter && styles.activePillText]}>
+              <Text style={[
+                styles.filterChipText,
+                selectedFilter === filter && styles.filterChipTextActive
+              ]}>
                 {filter}
               </Text>
             </TouchableOpacity>
@@ -199,25 +261,20 @@ const OrdersScreen = ({ navigation }: any) => {
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
-      ) : apiError ? (
+      ) : error ? (
         <View style={styles.centerBox}>
-           <AlertTriangle size={60} color={Colors.error} />
-           <Text style={styles.errorText}>
-             {('status' in apiError) ? `Error ${apiError.status}: ` : ''}
-             {('data' in apiError && (apiError.data as any)?.error) 
-               ? (apiError.data as any).error 
-               : ('message' in apiError) ? apiError.message : 'Connection failed. Check backend.'}
-           </Text>
-           <TouchableOpacity style={styles.retryBtn} onPress={onRefresh}>
-              <Text style={styles.retryBtnText}>Retry Connection</Text>
-           </TouchableOpacity>
+          <AlertTriangle size={36} color={Colors.error} />
+          <Text style={styles.errorText}>Failed to load orders</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={onRefresh} activeOpacity={0.8}>
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={filteredOrders}
           renderItem={renderOrderItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.scrollArea}
+          contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl 
@@ -228,8 +285,8 @@ const OrdersScreen = ({ navigation }: any) => {
           }
           ListEmptyComponent={
             <View style={styles.centerBox}>
-              <Package size={60} color="#E0E0E0" />
-              <Text style={styles.emptyMsg}>No matching orders found</Text>
+              <Package size={48} color={Colors.border} />
+              <Text style={styles.emptyMsg}>No orders found</Text>
             </View>
           }
         />
@@ -241,121 +298,130 @@ const OrdersScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.background,
   },
   topSection: {
     backgroundColor: Colors.white,
-    paddingTop: 75,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    ...Shadows.medium,
-    zIndex: 5,
+    paddingTop: 52,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 25,
-    marginBottom: 20,
+    paddingHorizontal: 18,
+    marginBottom: 14,
   },
   backBtn: {
-    padding: 8,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    marginRight: 15,
-  },
-  mainTitle: {
-    flex: 1,
-    fontSize: 28,
-    fontWeight: '900',
-    color: Colors.text,
-    letterSpacing: -0.5,
-  },
-  logoContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.white,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.small,
-    padding: 4,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  headerLogo: {
-    width: '100%',
-    height: '100%',
+  mainTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: -0.4,
+  },
+  subtitleText: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  createBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 14,
+    height: 38,
+    borderRadius: Radii.md,
+    gap: 4,
+    ...Shadows.small,
+  },
+  createBtnText: {
+    color: Colors.white,
+    fontWeight: '700',
+    fontSize: 13,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 25,
-    paddingHorizontal: 15,
-    borderRadius: 15,
-    height: 50,
-    gap: 10,
-    marginBottom: 20,
+    backgroundColor: Colors.background,
+    marginHorizontal: 18,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
+    height: 44,
+    marginBottom: 14,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     color: Colors.text,
-    fontWeight: '500',
   },
   filterScroll: {
-    marginBottom: 20,
-  },
-  filterContent: {
-    paddingHorizontal: 25,
-    gap: 10,
-  },
-  filterPill: {
     paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+    paddingBottom: 14,
+    gap: 8,
   },
-  activePill: {
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radii.pill,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterChipActive: {
     backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
-  pillText: {
-    fontSize: 13,
-    fontWeight: '700',
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
-  activePillText: {
+  filterChipTextActive: {
     color: Colors.white,
+    fontWeight: '700',
   },
-  scrollArea: {
-    padding: 20,
-    paddingTop: 10,
-    paddingBottom: 100,
+  listContainer: {
+    padding: 18,
+    paddingBottom: 40,
   },
   orderCard: {
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#F1F1F1',
+    borderColor: Colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 14,
   },
   orderIdLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    color: Colors.textSecondary,
-    letterSpacing: 1,
-    marginBottom: 2,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    letterSpacing: 0.5,
   },
   orderNumber: {
-    fontSize: 18,
-    fontWeight: '900',
+    fontSize: 16,
+    fontWeight: '800',
     color: Colors.text,
+    marginTop: 1,
   },
   idContainer: {
     flex: 1,
@@ -363,10 +429,10 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+    gap: 5,
   },
   statusDot: {
     width: 6,
@@ -374,114 +440,136 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
   customerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 14,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 18,
-    backgroundColor: Colors.primary + '10',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 12,
   },
   avatarText: {
-    color: Colors.primary,
-    fontSize: 20,
-    fontWeight: '900',
+    color: Colors.primaryDark,
+    fontSize: 16,
+    fontWeight: '800',
   },
   customerDetails: {
     flex: 1,
   },
   customerName: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   dateText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '600',
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontWeight: '500',
   },
   itemsBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 14,
+    backgroundColor: Colors.background,
+    padding: 10,
+    borderRadius: Radii.md,
     gap: 8,
-    marginBottom: 18,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   itemsText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 15,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F5F5F5',
+    borderTopColor: Colors.borderLight,
   },
   priceLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    color: Colors.textSecondary,
-    letterSpacing: 1,
+    color: Colors.textTertiary,
+    letterSpacing: 0.5,
   },
   priceValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: Colors.primary,
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.primaryDark,
+  },
+  editCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radii.pill,
+  },
+  editCardText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primaryDark,
+  },
+  deleteCardBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.errorLight,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   centerBox: {
     flex: 1,
-    paddingVertical: 80,
+    paddingVertical: 60,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyMsg: {
-    marginTop: 15,
-    fontSize: 16,
-    color: '#CCC',
-    fontWeight: '700',
+    marginTop: 12,
+    fontSize: 14,
+    color: Colors.textTertiary,
+    fontWeight: '600',
   },
   errorText: {
-    marginTop: 15,
-    fontSize: 14,
+    marginTop: 12,
+    fontSize: 13,
     color: Colors.error,
     fontWeight: '600',
     textAlign: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 30,
   },
   retryBtn: {
-    marginTop: 20,
-    backgroundColor: Colors.error + '15',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.error,
+    marginTop: 16,
+    backgroundColor: Colors.errorLight,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: Radii.md,
   },
   retryBtnText: {
     color: Colors.error,
-    fontWeight: '800',
+    fontWeight: '700',
     fontSize: 13,
   },
 });

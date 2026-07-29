@@ -9,10 +9,9 @@ import {
   Platform,
   ActivityIndicator,
   SafeAreaView,
-  Alert
 } from 'react-native';
-import { Lock, CheckCircle, ArrowLeft, ShieldCheck } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
+import { Lock, CheckCircle, ArrowLeft, KeyRound, Eye, EyeOff } from 'lucide-react-native';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useToast } from '../components/Toast';
 
 const ResetPasswordScreen = ({ route, navigation }: any) => {
@@ -21,6 +20,8 @@ const ResetPasswordScreen = ({ route, navigation }: any) => {
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -61,7 +62,7 @@ const ResetPasswordScreen = ({ route, navigation }: any) => {
         setSuccess(true);
         setTimeout(() => {
           navigation.navigate('Login');
-        }, 3000);
+        }, 2500);
       } else {
         showToast(result.message || 'Invalid code or expired', 'error');
       }
@@ -75,9 +76,11 @@ const ResetPasswordScreen = ({ route, navigation }: any) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.successContainer}>
-          <CheckCircle size={80} color={Colors.success} />
-          <Text style={styles.successTitle}>Password Reset!</Text>
-          <Text style={styles.successSub}>Your password has been updated successfully. Redirecting to login...</Text>
+          <View style={styles.successIconBadge}>
+            <CheckCircle size={56} color={Colors.success} />
+          </View>
+          <Text style={styles.successTitle}>Password Updated!</Text>
+          <Text style={styles.successSub}>Your password was updated successfully. Redirecting you to login screen...</Text>
         </View>
       </SafeAreaView>
     );
@@ -89,26 +92,30 @@ const ResetPasswordScreen = ({ route, navigation }: any) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <ArrowLeft size={24} color={Colors.text} />
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <ArrowLeft size={20} color={Colors.text} />
         </TouchableOpacity>
 
         <View style={styles.header}>
           <View style={styles.iconCircle}>
-            <ShieldCheck size={40} color={Colors.primary} />
+            <KeyRound size={28} color={Colors.primaryDark} />
           </View>
-          <Text style={styles.title}>Verify & Reset</Text>
-          <Text style={styles.subtitle}>Enter the code sent to {email}</Text>
+          <Text style={styles.title}>Reset Password</Text>
+          <Text style={styles.subtitle}>Enter 6-digit code sent to {email || 'your Gmail'}</Text>
         </View>
 
-        <View style={styles.form}>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <View style={styles.card}>
+          {error ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>{error}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>6-Digit Code</Text>
             <View style={styles.inputContainer}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { letterSpacing: 4, fontWeight: '700' }]}
                 placeholder="000000"
                 value={code}
                 onChangeText={setCode}
@@ -122,30 +129,52 @@ const ResetPasswordScreen = ({ route, navigation }: any) => {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>New Password</Text>
             <View style={styles.inputContainer}>
-              <Lock size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+              <Lock size={18} color={Colors.textTertiary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Minimum 6 characters"
+                placeholder="Min 6 characters"
                 value={newPassword}
                 onChangeText={setNewPassword}
-                secureTextEntry
+                secureTextEntry={!showNewPassword}
                 placeholderTextColor={Colors.textTertiary}
               />
+              <TouchableOpacity
+                onPress={() => setShowNewPassword(!showNewPassword)}
+                style={styles.eyeBtn}
+                activeOpacity={0.7}
+              >
+                {showNewPassword ? (
+                  <EyeOff size={18} color={Colors.primaryDark} />
+                ) : (
+                  <Eye size={18} color={Colors.textTertiary} />
+                )}
+              </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Confirm Password</Text>
             <View style={styles.inputContainer}>
-              <Lock size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+              <Lock size={18} color={Colors.textTertiary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Repeat new password"
+                placeholder="Repeat password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                secureTextEntry
+                secureTextEntry={!showConfirmPassword}
                 placeholderTextColor={Colors.textTertiary}
               />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.eyeBtn}
+                activeOpacity={0.7}
+              >
+                {showConfirmPassword ? (
+                  <EyeOff size={18} color={Colors.primaryDark} />
+                ) : (
+                  <Eye size={18} color={Colors.textTertiary} />
+                )}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -153,11 +182,12 @@ const ResetPasswordScreen = ({ route, navigation }: any) => {
             style={[styles.resetButton, loading && styles.buttonDisabled]}
             onPress={handleReset}
             disabled={loading}
+            activeOpacity={0.8}
           >
             {loading ? (
-              <ActivityIndicator color={Colors.white} />
+              <ActivityIndicator color={Colors.white} size="small" />
             ) : (
-              <Text style={styles.resetButtonText}>Reset Password</Text>
+              <Text style={styles.resetButtonText}>Save New Password</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -169,118 +199,145 @@ const ResetPasswordScreen = ({ route, navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.background,
   },
   keyboardView: {
     flex: 1,
     paddingHorizontal: 24,
+    justifyContent: 'center',
   },
   backButton: {
-    marginTop: 20,
-    width: 40,
-    height: 40,
+    position: 'absolute',
+    top: 52,
+    left: 24,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.white,
     justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.small,
+    zIndex: 10,
   },
   header: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 40,
+    marginBottom: 24,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.primary + '10',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: Colors.text,
+    letterSpacing: -0.4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.textSecondary,
-    marginTop: 8,
+    marginTop: 4,
     textAlign: 'center',
   },
-  form: {
-    width: '100%',
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: Radii.xl,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.medium,
+  },
+  errorBanner: {
+    backgroundColor: Colors.errorLight,
+    borderRadius: Radii.md,
+    padding: 10,
+    marginBottom: 14,
+  },
+  errorBannerText: {
+    color: Colors.error,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 8,
-    marginLeft: 4,
+    color: Colors.text,
+    marginBottom: 6,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 15,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   inputIcon: {
-    marginRight: 12,
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    paddingVertical: 14,
-    fontSize: 16,
+    paddingVertical: 12,
+    fontSize: 15,
     color: Colors.text,
+  },
+  eyeBtn: {
+    padding: 6,
   },
   resetButton: {
     backgroundColor: Colors.primary,
-    borderRadius: 15,
-    paddingVertical: 16,
+    borderRadius: Radii.md,
+    paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 20,
-    ...Shadows.medium,
+    marginTop: 8,
+    ...Shadows.small,
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   resetButtonText: {
     color: Colors.white,
     fontSize: 16,
     fontWeight: '700',
   },
-  errorText: {
-    color: Colors.error,
-    backgroundColor: Colors.error + '10',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 20,
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '500',
-  },
   successContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 30,
+  },
+  successIconBadge: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.successLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   successTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.text,
-    marginTop: 24,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   successSub: {
-    fontSize: 16,
+    fontSize: 14,
     color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 20,
   },
 });
 

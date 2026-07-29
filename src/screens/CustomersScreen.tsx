@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -13,14 +13,12 @@ import {
   Linking,
 } from 'react-native';
 import * as Lucide from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
-import { useGetCustomersQuery } from '../services/customerApi';
-import { Customer } from '../services/customerApi';
+import { Colors, Shadows, Radii } from '../theme/colors';
+import { useGetCustomersQuery, Customer } from '../services/customerApi';
 
 const CustomersScreen = ({ navigation }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Performance Data Fetching
   const { 
     data: customers = [], 
     isLoading, 
@@ -65,18 +63,16 @@ const CustomersScreen = ({ navigation }: any) => {
   }, [navigation]);
 
   const renderCustomerItem = ({ item }: { item: Customer }) => {
-    const avatarColor = [Colors.primary, '#6366F1', '#8B5CF6', '#EC4899', '#F59E0B'][Math.floor(Math.random() * 5)];
-    
     return (
-      <View style={styles.customerCard}>
+      <View style={[styles.customerCard, Shadows.small]}>
         <View style={styles.cardHeader}>
-          <View style={[styles.avatar, { backgroundColor: avatarColor + '15' }]}>
-            <Text style={[styles.avatarText, { color: avatarColor }]}>{item.name?.charAt(0).toUpperCase()}</Text>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{item.name?.charAt(0).toUpperCase() || 'C'}</Text>
           </View>
           <View style={styles.headerInfo}>
             <Text style={styles.customerName}>{item.name}</Text>
             <View style={styles.phoneTag}>
-               <Lucide.Phone size={10} color={Colors.textSecondary} />
+               <Lucide.Phone size={10} color={Colors.textTertiary} />
                <Text style={styles.customerPhone}>{item.phone || 'No Mobile'}</Text>
             </View>
           </View>
@@ -84,25 +80,24 @@ const CustomersScreen = ({ navigation }: any) => {
             <TouchableOpacity 
               style={styles.circleBtn}
               onPress={() => handleEdit(item)}
+              activeOpacity={0.7}
             >
-              <Lucide.Edit2 size={16} color={Colors.primary} />
+              <Lucide.Edit2 size={14} color={Colors.primary} />
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.circleBtn}
-              onPress={() => {
-                 // Delete handled through API mutations (to be implemented)
-                 Alert.alert('Delete', 'Delete feature migration in progress...');
-              }}
+              onPress={() => Alert.alert('Delete', 'Delete feature migration in progress...')}
+              activeOpacity={0.7}
             >
-              <Lucide.Trash2 size={16} color={Colors.error} />
+              <Lucide.Trash2 size={14} color={Colors.error} />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.cardContent}>
            <View style={styles.infoBox}>
-              <Lucide.MapPin size={14} color={Colors.textSecondary} />
-              <Text style={styles.addressText} numberOfLines={1}>{item.address || 'No Address Provided'}</Text>
+              <Lucide.MapPin size={12} color={Colors.textTertiary} />
+              <Text style={styles.addressText} numberOfLines={1}>{item.address || 'No address provided'}</Text>
            </View>
         </View>
 
@@ -110,16 +105,18 @@ const CustomersScreen = ({ navigation }: any) => {
            <TouchableOpacity 
              style={styles.secondaryBtn}
              onPress={() => item.phone && handleCall(item.phone)}
+             activeOpacity={0.8}
            >
-              <Lucide.Phone size={16} color={Colors.white} />
-              <Text style={styles.btnTextWhite}>Call Now</Text>
+              <Lucide.Phone size={14} color={Colors.white} />
+              <Text style={styles.btnTextWhite}>Call</Text>
            </TouchableOpacity>
            
            <TouchableOpacity 
              style={styles.primaryBtn}
              onPress={() => handleViewOrders(item.id)}
+             activeOpacity={0.7}
            >
-              <Lucide.History size={16} color={Colors.primary} />
+              <Lucide.History size={14} color={Colors.primaryDark} />
               <Text style={styles.btnTextPrimary}>Orders</Text>
            </TouchableOpacity>
         </View>
@@ -134,29 +131,31 @@ const CustomersScreen = ({ navigation }: any) => {
           <TouchableOpacity 
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}
             style={styles.backBtn}
+            activeOpacity={0.7}
           >
-            <Lucide.ArrowLeft size={24} color={Colors.text} />
+            <Lucide.ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.screenTitle}>Clients</Text>
-            <Text style={styles.screenSub}>{customers.length} Contacts Saved</Text>
+            <Text style={styles.screenSub}>{customers.length} contacts saved</Text>
           </View>
           <TouchableOpacity 
             style={styles.addBtn}
             onPress={handleAdd}
+            activeOpacity={0.8}
           >
-            <Lucide.Plus size={24} color={Colors.white} />
+            <Lucide.Plus size={18} color={Colors.white} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.searchContainer}>
-          <Lucide.Search size={18} color={Colors.textSecondary} />
+          <Lucide.Search size={18} color={Colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Find by name or number..."
+            placeholder="Search name or phone..."
             value={searchQuery}
             onChangeText={handleSearch}
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={Colors.textTertiary}
           />
         </View>
       </View>
@@ -177,9 +176,9 @@ const CustomersScreen = ({ navigation }: any) => {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Lucide.User size={60} color="#E2E8F0" />
+              <Lucide.User size={48} color={Colors.border} />
               <Text style={styles.emptyTitle}>No Contacts Found</Text>
-              <Text style={styles.emptyBody}>Try a different search or add a new client.</Text>
+              <Text style={styles.emptyBody}>Try a different search query or add a new client.</Text>
             </View>
           }
         />
@@ -191,45 +190,47 @@ const CustomersScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.background,
   },
   topSection: {
     backgroundColor: Colors.white,
-    paddingTop: 75,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    ...Shadows.medium,
-    zIndex: 10,
+    paddingTop: 52,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 20,
+    paddingHorizontal: 18,
+    marginBottom: 16,
   },
   backBtn: {
-    padding: 8,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    marginRight: 15,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   screenTitle: {
-    fontSize: 28,
-    fontWeight: '900',
+    fontSize: 22,
+    fontWeight: '800',
     color: Colors.text,
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
   },
   screenSub: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.textSecondary,
-    fontWeight: '600',
-    marginTop: 2,
+    marginTop: 1,
   },
   addBtn: {
     backgroundColor: Colors.primary,
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.small,
@@ -237,56 +238,58 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    marginHorizontal: 24,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    height: 52,
-    marginBottom: 24,
-    gap: 12,
+    backgroundColor: Colors.background,
+    marginHorizontal: 18,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
+    height: 44,
+    marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.text,
-    fontWeight: '600',
   },
   listArea: {
-    padding: 20,
-    paddingBottom: 110,
+    padding: 18,
+    paddingBottom: 40,
   },
   customerCard: {
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 16,
-    marginBottom: 16,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: Colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    fontSize: 20,
-    fontWeight: '900',
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.primaryDark,
   },
   headerInfo: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 12,
   },
   customerName: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.text,
   },
   phoneTag: {
@@ -296,101 +299,104 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   customerPhone: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '700',
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontWeight: '500',
   },
   actionRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   circleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+    width: 32,
+    height: 32,
+    borderRadius: Radii.sm,
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   cardContent: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 10,
-    borderRadius: 12,
-    gap: 8,
+    backgroundColor: Colors.background,
+    padding: 8,
+    borderRadius: Radii.md,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   addressText: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.textSecondary,
-    fontWeight: '600',
     flex: 1,
   },
   cardFooter: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 16,
+    borderTopColor: Colors.borderLight,
+    paddingTop: 12,
   },
   primaryBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.primary + '10',
-    height: 44,
-    borderRadius: 12,
+    gap: 6,
+    backgroundColor: Colors.primaryLight,
+    height: 38,
+    borderRadius: Radii.md,
   },
   secondaryBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: Colors.primary,
-    height: 44,
-    borderRadius: 12,
+    height: 38,
+    borderRadius: Radii.md,
     ...Shadows.small,
   },
   btnTextWhite: {
     color: Colors.white,
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 12,
+    fontWeight: '700',
   },
   btnTextPrimary: {
-    color: Colors.primary,
-    fontSize: 13,
-    fontWeight: '800',
+    color: Colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 100,
+    paddingVertical: 60,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
+    paddingVertical: 60,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
     color: Colors.text,
-    marginTop: 16,
+    marginTop: 12,
   },
   emptyBody: {
-    fontSize: 14,
-    color: Colors.textSecondary,
+    fontSize: 12,
+    color: Colors.textTertiary,
     textAlign: 'center',
-    marginTop: 8,
-    paddingHorizontal: 40,
+    marginTop: 4,
+    paddingHorizontal: 30,
   },
 });
 

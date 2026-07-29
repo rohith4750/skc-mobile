@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,15 +12,12 @@ import {
   Alert,
 } from 'react-native';
 import { UserCheck, Plus, Search, Phone, Mail, Building2, ChevronRight, ArrowLeft } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
-import api from '../services/api';
-
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useGetSupervisorsQuery } from '../services/adminApi';
 
 const SupervisorsScreen = ({ navigation }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Performance Data Fetching
   const { 
     data: supervisors = [], 
     isLoading, 
@@ -50,10 +47,10 @@ const SupervisorsScreen = ({ navigation }: any) => {
   }, [supervisors, searchQuery]);
 
   const renderSupervisorItem = ({ item }: { item: any }) => (
-    <View style={styles.svCard}>
+    <View style={[styles.svCard, Shadows.small]}>
       <View style={styles.cardHeader}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.name?.charAt(0).toUpperCase()}</Text>
+          <Text style={styles.avatarText}>{item.name?.charAt(0).toUpperCase() || 'S'}</Text>
         </View>
         <View style={styles.headerInfo}>
           <Text style={styles.svName}>{item.name}</Text>
@@ -62,8 +59,8 @@ const SupervisorsScreen = ({ navigation }: any) => {
             <Text style={styles.serviceText}>{item.cateringServiceName || 'SKC Catering'}</Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: item.isActive ? '#E8F5E9' : '#FFEBEE' }]}>
-          <Text style={[styles.statusText, { color: item.isActive ? '#2E7D32' : '#C62828' }]}>
+        <View style={[styles.statusBadge, { backgroundColor: item.isActive ? Colors.successLight : Colors.errorLight }]}>
+          <Text style={[styles.statusText, { color: item.isActive ? Colors.success : Colors.error }]}>
             {item.isActive ? 'ACTIVE' : 'INACTIVE'}
           </Text>
         </View>
@@ -71,18 +68,18 @@ const SupervisorsScreen = ({ navigation }: any) => {
 
       <View style={styles.contactSection}>
         <View style={styles.contactRow}>
-          <Phone size={14} color={Colors.textSecondary} />
+          <Phone size={13} color={Colors.textTertiary} />
           <Text style={styles.contactText}>{item.phone || 'No phone'}</Text>
         </View>
         <View style={styles.contactRow}>
-          <Mail size={14} color={Colors.textSecondary} />
+          <Mail size={13} color={Colors.textTertiary} />
           <Text style={styles.contactText}>{item.email || 'No email'}</Text>
         </View>
       </View>
 
-      <TouchableOpacity style={styles.viewOrdersBtn}>
+      <TouchableOpacity style={styles.viewOrdersBtn} activeOpacity={0.7}>
         <Text style={styles.viewOrdersText}>Assigned Orders</Text>
-        <ChevronRight size={16} color={Colors.primary} />
+        <ChevronRight size={14} color={Colors.primaryDark} />
       </TouchableOpacity>
     </View>
   );
@@ -94,26 +91,31 @@ const SupervisorsScreen = ({ navigation }: any) => {
           <TouchableOpacity 
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}
             style={styles.backBtn}
+            activeOpacity={0.7}
           >
-            <ArrowLeft size={24} color={Colors.text} />
+            <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Supervisors</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Supervisors</Text>
+            <Text style={styles.subtitle}>{supervisors.length} active supervisors</Text>
+          </View>
           <TouchableOpacity 
             style={styles.addButton}
             onPress={() => Alert.alert('Add Supervisor', 'This feature is currently read-only on mobile.')}
+            activeOpacity={0.8}
           >
-            <Plus size={24} color={Colors.white} />
+            <Plus size={18} color={Colors.white} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.searchContainer}>
-          <Search size={18} color={Colors.textSecondary} />
+          <Search size={18} color={Colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search by name or contact..."
             value={searchQuery}
             onChangeText={handleSearch}
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={Colors.textTertiary}
           />
         </View>
       </View>
@@ -128,11 +130,12 @@ const SupervisorsScreen = ({ navigation }: any) => {
           renderItem={renderSupervisorItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl 
               refreshing={isFetching} 
               onRefresh={onRefresh} 
-              colors={[Colors.primary]} 
+              tintColor={Colors.primary} 
             />
           }
           ListEmptyComponent={
@@ -150,44 +153,53 @@ const SupervisorsScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: Colors.background,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 50,
+    paddingVertical: 60,
   },
   header: {
     backgroundColor: Colors.white,
-    paddingTop: 75,
+    paddingTop: 52,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     marginBottom: 16,
   },
   title: {
-    flex: 1,
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
     color: Colors.text,
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
   },
   backBtn: {
-    padding: 8,
-    backgroundColor: '#F1F3F5',
-    borderRadius: 12,
-    marginRight: 15,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   addButton: {
     backgroundColor: Colors.primary,
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.small,
@@ -195,56 +207,57 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F3F5',
-    marginHorizontal: 20,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    backgroundColor: Colors.background,
+    marginHorizontal: 18,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
     height: 44,
     marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
     fontSize: 14,
     color: Colors.text,
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 100,
+    padding: 18,
+    paddingBottom: 40,
   },
   svCard: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: Colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.primary + '15',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    color: Colors.primary,
+    color: Colors.primaryDark,
   },
   headerInfo: {
     flex: 1,
     marginLeft: 12,
   },
   svName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: Colors.text,
   },
@@ -252,57 +265,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2,
+    marginTop: 1,
   },
   serviceText: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   statusBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
   },
   statusText: {
     fontSize: 9,
     fontWeight: '800',
   },
   contactSection: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 12,
-    gap: 6,
-    marginBottom: 12,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
+    padding: 10,
+    gap: 4,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   contactText: {
-    fontSize: 13,
-    color: Colors.text,
-    fontWeight: '500',
+    fontSize: 12,
+    color: Colors.textSecondary,
   },
   viewOrdersBtn: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 10,
+    paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F1F3F5',
+    borderTopColor: Colors.borderLight,
   },
   viewOrdersText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: Colors.primary,
+    color: Colors.primaryDark,
   },
   emptyText: {
     marginTop: 12,
-    fontSize: 16,
-    color: Colors.textSecondary,
-    fontWeight: '500',
+    fontSize: 13,
+    color: Colors.textTertiary,
+    fontWeight: '600',
   },
 });
 

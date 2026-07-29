@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,16 +11,13 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { Package, Plus, Search, AlertTriangle, History, ArrowLeft } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
-import api from '../services/api';
-
+import { Package, Plus, Search, AlertTriangle, ArrowLeft } from 'lucide-react-native';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useGetMaterialsQuery } from '../services/adminApi';
 
 const MaterialsScreen = ({ navigation }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Performance Data Fetching
   const { 
     data: stock = [], 
     isLoading, 
@@ -51,10 +48,10 @@ const MaterialsScreen = ({ navigation }: any) => {
   const renderStockItem = ({ item }: { item: any }) => {
     const isLow = item.minStock !== null && item.currentStock <= item.minStock;
     return (
-      <View style={styles.stockCard}>
+      <View style={[styles.stockCard, Shadows.small]}>
         <View style={styles.cardHeader}>
-          <View style={styles.iconContainer}>
-             <Package size={20} color={isLow ? Colors.error : Colors.primary} />
+          <View style={[styles.iconContainer, { backgroundColor: isLow ? Colors.errorLight : Colors.primaryLight }]}>
+             <Package size={18} color={isLow ? Colors.error : Colors.primaryDark} />
           </View>
           <View style={styles.headerInfo}>
              <Text style={styles.itemName}>{item.name}</Text>
@@ -92,26 +89,31 @@ const MaterialsScreen = ({ navigation }: any) => {
           <TouchableOpacity 
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}
             style={styles.backBtn}
+            activeOpacity={0.7}
           >
-            <ArrowLeft size={24} color={Colors.text} />
+            <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Materials</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Inventory</Text>
+            <Text style={styles.subtitle}>{stock.length} materials tracked</Text>
+          </View>
           <TouchableOpacity 
             style={styles.addButton}
             onPress={() => Alert.alert('Add Material', 'Manage materials on the web dashboard.')}
+            activeOpacity={0.8}
           >
-            <Plus size={24} color={Colors.white} />
+            <Plus size={18} color={Colors.white} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.searchContainer}>
-          <Search size={18} color={Colors.textSecondary} />
+          <Search size={18} color={Colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search materials..."
             value={searchQuery}
             onChangeText={handleSearch}
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={Colors.textTertiary}
           />
         </View>
       </View>
@@ -126,11 +128,12 @@ const MaterialsScreen = ({ navigation }: any) => {
           renderItem={renderStockItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl 
               refreshing={isFetching} 
               onRefresh={onRefresh} 
-              colors={[Colors.primary]} 
+              tintColor={Colors.primary} 
             />
           }
           ListEmptyComponent={
@@ -148,44 +151,53 @@ const MaterialsScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: Colors.background,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 50,
+    paddingVertical: 60,
   },
   header: {
     backgroundColor: Colors.white,
-    paddingTop: 75,
+    paddingTop: 52,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     marginBottom: 16,
   },
   title: {
-    flex: 1,
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
     color: Colors.text,
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
   },
   backBtn: {
-    padding: 8,
-    backgroundColor: '#F1F3F5',
-    borderRadius: 12,
-    marginRight: 15,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   addButton: {
     backgroundColor: Colors.primary,
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.small,
@@ -193,42 +205,42 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F3F5',
-    marginHorizontal: 20,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    backgroundColor: Colors.background,
+    marginHorizontal: 18,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
     height: 44,
     marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
     fontSize: 14,
     color: Colors.text,
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 100,
+    padding: 18,
+    paddingBottom: 40,
   },
   stockCard: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: Colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#F8F9FA',
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -237,34 +249,37 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   itemName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: Colors.text,
   },
   categoryText: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.textSecondary,
+    marginTop: 1,
   },
   lowBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFEBEE',
+    backgroundColor: Colors.errorLight,
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
   },
   lowText: {
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
     color: Colors.error,
   },
   stockDetails: {
     flexDirection: 'row',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
+    padding: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   detailItem: {
     flex: 1,
@@ -272,25 +287,26 @@ const styles = StyleSheet.create({
   },
   detailDivider: {
     width: 1,
-    height: 30,
-    backgroundColor: '#DEE2E6',
+    height: 24,
+    backgroundColor: Colors.borderLight,
   },
   detailLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: Colors.textSecondary,
-    marginBottom: 4,
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    marginBottom: 2,
+    letterSpacing: 0.5,
   },
   detailValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.text,
   },
   emptyText: {
     marginTop: 12,
-    fontSize: 16,
-    color: Colors.textSecondary,
-    fontWeight: '500',
+    fontSize: 13,
+    color: Colors.textTertiary,
+    fontWeight: '600',
   },
 });
 

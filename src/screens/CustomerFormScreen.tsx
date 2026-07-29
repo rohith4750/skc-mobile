@@ -12,8 +12,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { ArrowLeft, User, Phone, Mail, MapPin, Save, X } from 'lucide-react-native';
-import { Colors, Shadows } from '../theme/colors';
+import { ArrowLeft, User, Phone, Mail, MapPin, Save } from 'lucide-react-native';
+import { Colors, Shadows, Radii } from '../theme/colors';
 import { useCreateCustomerMutation, useUpdateCustomerMutation } from '../services/customerApi';
 
 const CustomerFormScreen = ({ route, navigation }: any) => {
@@ -82,18 +82,16 @@ const CustomerFormScreen = ({ route, navigation }: any) => {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>{label}</Text>
         <View style={[styles.inputContainer, multiline && styles.textAreaContainer]}>
-          <View style={styles.iconContainer}>
-            <Icon size={18} color={Colors.textSecondary} />
-          </View>
+          <Icon size={16} color={Colors.textTertiary} style={styles.inputIcon} />
           <TextInput
             style={[styles.input, multiline && styles.textArea]}
             value={value}
             onChangeText={onChangeText}
             placeholder={placeholder}
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={Colors.textTertiary}
             keyboardType={keyboardType}
             multiline={multiline}
-            numberOfLines={multiline ? 4 : 1}
+            numberOfLines={multiline ? 3 : 1}
           />
         </View>
       </View>
@@ -110,20 +108,21 @@ const CustomerFormScreen = ({ route, navigation }: any) => {
           <TouchableOpacity 
             onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')} 
             style={styles.backButton}
+            activeOpacity={0.7}
           >
-            <ArrowLeft size={24} color={Colors.text} />
+            <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{isEditing ? 'Edit Customer' : 'Add New Customer'}</Text>
-          <View style={{ width: 44 }} />
+          <Text style={styles.headerTitle}>{isEditing ? 'Edit Client' : 'Add Client'}</Text>
+          <View style={{ width: 38 }} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          <View style={styles.formCard}>
+          <View style={[styles.formCard, Shadows.small]}>
             {renderInput(
               'Full Name *', 
               formData.name, 
               (text) => setFormData({...formData, name: text}), 
-              'Enter customer name', 
+              'Customer name', 
               User
             )}
 
@@ -131,7 +130,7 @@ const CustomerFormScreen = ({ route, navigation }: any) => {
               'Phone Number *', 
               formData.phone, 
               (text) => setFormData({...formData, phone: text}), 
-              'Enter phone number', 
+              'Mobile number', 
               Phone,
               'phone-pad'
             )}
@@ -140,16 +139,16 @@ const CustomerFormScreen = ({ route, navigation }: any) => {
               'Email Address', 
               formData.email, 
               (text) => setFormData({...formData, email: text}), 
-              'Enter email address', 
+              'Email address', 
               Mail,
               'email-address'
             )}
 
             {renderInput(
-              'Delivery Address', 
+              'Delivery Address *', 
               formData.address, 
               (text) => setFormData({...formData, address: text}), 
-              'Enter full address', 
+              'Full street address', 
               MapPin,
               'default',
               true
@@ -159,7 +158,7 @@ const CustomerFormScreen = ({ route, navigation }: any) => {
               'Internal Notes', 
               formData.message, 
               (text) => setFormData({...formData, message: text}), 
-              'Anything specific about this customer?', 
+              'Additional customer preferences or notes', 
               Mail,
               'default',
               true
@@ -172,13 +171,14 @@ const CustomerFormScreen = ({ route, navigation }: any) => {
             style={[styles.saveButton, loading && styles.disabledButton]} 
             onPress={handleSave}
             disabled={loading}
+            activeOpacity={0.8}
           >
             {loading ? (
-              <ActivityIndicator color={Colors.white} />
+              <ActivityIndicator color={Colors.white} size="small" />
             ) : (
               <>
-                <Save size={20} color={Colors.white} />
-                <Text style={styles.saveButtonText}>{isEditing ? 'Update Customer' : 'Create Customer'}</Text>
+                <Save size={18} color={Colors.white} />
+                <Text style={styles.saveButtonText}>{isEditing ? 'Update Client' : 'Save Client'}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -191,99 +191,103 @@ const CustomerFormScreen = ({ route, navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 75,
-    paddingBottom: 15,
+    paddingHorizontal: 18,
+    paddingTop: 52,
+    paddingBottom: 14,
     backgroundColor: Colors.white,
-    ...Shadows.small,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   backButton: {
-    padding: 8,
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
     color: Colors.text,
+    letterSpacing: -0.3,
   },
   scrollContent: {
-    padding: 20,
+    padding: 18,
   },
   formCard: {
     backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 20,
-    ...Shadows.small,
+    borderRadius: Radii.xl,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: Colors.border,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 14,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 8,
-    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: 6,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 14,
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: '#E9ECEF',
-    height: 54,
+    borderColor: Colors.border,
+    paddingHorizontal: 12,
+  },
+  inputIcon: {
+    marginRight: 8,
   },
   textAreaContainer: {
-    height: 100,
+    height: 80,
     alignItems: 'flex-start',
-    paddingTop: 12,
-  },
-  iconContainer: {
-    width: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: 10,
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.text,
-    fontWeight: '500',
-    paddingRight: 15,
+    paddingVertical: 10,
   },
   textArea: {
     textAlignVertical: 'top',
     height: '100%',
   },
   footer: {
-    padding: 20,
+    padding: 18,
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
   saveButton: {
     backgroundColor: Colors.primary,
-    height: 56,
-    borderRadius: 16,
+    height: 48,
+    borderRadius: Radii.md,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    ...Shadows.medium,
+    gap: 8,
+    ...Shadows.small,
   },
   disabledButton: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   saveButtonText: {
     color: Colors.white,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
 });
