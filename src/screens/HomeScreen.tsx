@@ -8,8 +8,10 @@ import {
   Dimensions,
   ActivityIndicator,
   RefreshControl,
-  Image
+  Image,
+  Platform
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 const LOGO = require('../assets/icon.png');
 import {
@@ -69,7 +71,9 @@ const QuickAction = ({ title, icon: Icon, color, onPress }: any) => (
 
 const HomeScreen = ({ navigation }: any) => {
   const { user } = useAuth();
-  const [timeframe, setTimeframe] = useState<'today' | 'month' | 'all'>('today');
+  const [timeframe, setTimeframe] = useState<'today' | 'month' | 'all' | 'custom'>('today');
+  const [customDate, setCustomDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const { 
     data: dashboardData, 
@@ -161,6 +165,39 @@ const HomeScreen = ({ navigation }: any) => {
     };
   }, [allOrders]);
 
+  // Custom date calculations
+  const customStats = useMemo(() => {
+    const targetDate = customDate.toISOString().split('T')[0];
+
+    const targetOrders = allOrders.filter((o: any) => {
+      if (o.status === 'cancelled') return false;
+      const dateVal = o.eventDate || o.createdAt;
+      if (!dateVal) return false;
+      return dateVal.startsWith(targetDate);
+    });
+
+    let customTotalAmount = 0;
+    let customCollected = 0;
+    let customPending = 0;
+
+    targetOrders.forEach((o: any) => {
+      const total = Number(o.totalAmount || 0);
+      const advance = Number(o.advancePaid || 0);
+      const remaining = Number(o.remainingAmount || Math.max(0, total - advance));
+
+      customTotalAmount += total;
+      customCollected += advance;
+      customPending += remaining;
+    });
+
+    return {
+      totalAmount: customTotalAmount,
+      collected: customCollected,
+      pending: customPending,
+      count: targetOrders.length,
+    };
+  }, [allOrders, customDate]);
+
   // Dynamic values depending on selected timeframe
   const activeHeroData = useMemo(() => {
     if (timeframe === 'month') {
@@ -181,6 +218,16 @@ const HomeScreen = ({ navigation }: any) => {
         pending: allTimeStats.pending,
         ordersLabel: "Total Orders",
       };
+    } else if (timeframe === 'custom') {
+      const formatted = customDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+      return {
+        label: `${formatted} REVENUE`,
+        totalAmount: customStats.totalAmount,
+        ordersCount: customStats.count,
+        collected: customStats.collected,
+        pending: customStats.pending,
+        ordersLabel: "Custom Orders",
+      };
     } else {
       return {
         label: "TODAY'S REVENUE",
@@ -191,7 +238,7 @@ const HomeScreen = ({ navigation }: any) => {
         ordersLabel: "Today's Orders",
       };
     }
-  }, [timeframe, stats, displayTodayOrders, monthStats, allTimeStats]);
+  }, [timeframe, stats, displayTodayOrders, monthStats, allTimeStats, customStats, customDate]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -257,7 +304,32 @@ const HomeScreen = ({ navigation }: any) => {
             >
               <Text style={[styles.timeframeText, timeframe === 'all' && styles.timeframeTextActive]}>All Time</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.timeframeChip, timeframe === 'custom' && styles.timeframeChipActive]}
+              onPress={() => {
+                setTimeframe('custom');
+                setShowDatePicker(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.timeframeText, timeframe === 'custom' && styles.timeframeTextActive]}>Custom</Text>
+            </TouchableOpacity>
           </View>
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={customDate}
+              mode="date"
+              display="default"
+              onChange={(event: any, selectedDate?: Date) => {
+                setShowDatePicker(Platform.OS === 'ios');
+                if (selectedDate) {
+                  setCustomDate(selectedDate);
+                }
+              }}
+            />
+          )}
 
           <View style={styles.heroTop}>
             <View>

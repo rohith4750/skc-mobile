@@ -98,7 +98,16 @@ const MainTabs = () => {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       {canViewOrders && (
-        <Tab.Screen name="Orders" component={OrdersStack} />
+        <Tab.Screen 
+          name="Orders" 
+          component={OrdersStack} 
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              e.preventDefault();
+              navigation.navigate('Orders', { screen: 'OrdersHome' });
+            },
+          })}
+        />
       )}
       {canViewBills && (
         <Tab.Screen name="Bills" component={BillsScreen} />

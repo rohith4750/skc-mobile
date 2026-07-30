@@ -142,6 +142,24 @@ const NewOrderScreen = ({ route, navigation }: any) => {
   const [activeMealIdForItemSelection, setActiveMealIdForItemSelection] = useState<string | null>(null);
   const [activeStallIdForItemSelection, setActiveStallIdForItemSelection] = useState<string | null>(null);
 
+  const resetForm = () => {
+    setCustomerId('');
+    setEventName('');
+    setOrderType('EVENT');
+    setMealTypes([]);
+    setStalls([]);
+    setShowStalls(false);
+    setDiscount('');
+    setTransportCost('');
+    setWaterBottlesCost('');
+    setAdvancePaid('');
+    setPaymentMethod('cash');
+    setPaymentNotes('');
+    setExpandedSection('customer');
+    setExpandedMealCards({});
+    setExpandedStallCards({});
+  };
+
   const generateId = () => Math.random().toString(36).substring(2, 9);
 
   // Initialize or prefill when editing
@@ -745,6 +763,7 @@ const NewOrderScreen = ({ route, navigation }: any) => {
       } else {
         await createOrder({ ...payload, status: 'pending' }).unwrap();
         showToast('Order created successfully!', 'success');
+        resetForm();
       }
 
       navigation.goBack();

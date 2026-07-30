@@ -12,7 +12,15 @@
       "android": {
         "buildType": "apk"
       },
+      "ios": {
+        "simulator": true
+      },
       "distribution": "internal"
+    },
+    "simulator": {
+      "ios": {
+        "simulator": true
+      }
     },
     "production": {
       "android": {

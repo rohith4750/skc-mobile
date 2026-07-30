@@ -17,7 +17,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.skccaterers.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -29,8 +33,6 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ]
@@ -46,7 +48,8 @@
           "locationAlwaysPermission": "Allow SKC Caterers to use your location to track deliveries in the background.",
           "locationWhenInUsePermission": "Allow SKC Caterers to use your location to track your deliveries."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
