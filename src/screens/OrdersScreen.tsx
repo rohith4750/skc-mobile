@@ -227,30 +227,42 @@ const OrdersScreen = ({ navigation }: any) => {
       return dB - dA;
     });
 
-    const map: Record<string, Order[]> = {};
+    const now = new Date();
+    const map: Record<string, { title: string; monthName: string; yearName: string; shortMonth: string; isCurrentMonth: boolean; data: Order[] }> = {};
 
     sorted.forEach(order => {
       const dVal = (order as any).eventDate || order.createdAt;
-      let monthTitle = '📅 Other / Unknown Date';
+      let monthName = 'Other';
+      let yearName = '';
+      let shortMonth = 'DATE';
+      let isCurrentMonth = false;
 
       if (dVal) {
         const d = new Date(dVal);
         if (!isNaN(d.getTime())) {
-          const monthName = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-          monthTitle = `📅 ${monthName}`;
+          monthName = d.toLocaleDateString('en-IN', { month: 'long' });
+          yearName = `${d.getFullYear()}`;
+          shortMonth = d.toLocaleDateString('en-IN', { month: 'short' });
+          isCurrentMonth = (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth());
         }
       }
 
-      if (!map[monthTitle]) {
-        map[monthTitle] = [];
+      const title = `${monthName} ${yearName}`.trim();
+
+      if (!map[title]) {
+        map[title] = {
+          title,
+          monthName,
+          yearName,
+          shortMonth,
+          isCurrentMonth,
+          data: [],
+        };
       }
-      map[monthTitle].push(order);
+      map[title].data.push(order);
     });
 
-    return Object.keys(map).map(title => ({
-      title,
-      data: map[title],
-    }));
+    return Object.values(map);
   }, [filteredOrders]);
 
   const renderOrderItem = ({ item }: { item: Order }) => {
@@ -587,14 +599,50 @@ const OrdersScreen = ({ navigation }: any) => {
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
-          renderSectionHeader={({ section: { title, data } }) => (
-            <View style={styles.monthHeaderRow}>
-              <Text style={styles.monthHeaderTitle}>{title}</Text>
-              <View style={styles.monthHeaderBadge}>
-                <Text style={styles.monthHeaderBadgeText}>{data.length} {data.length === 1 ? 'order' : 'orders'}</Text>
+          renderSectionHeader={({ section }: any) => {
+            const { monthName, yearName, shortMonth, isCurrentMonth, data } = section;
+            return (
+              <View style={[
+                styles.monthCardContainer, 
+                isCurrentMonth && styles.currentMonthCardContainer,
+                Shadows.small
+              ]}>
+                <View style={styles.monthHeaderLeft}>
+                  {/* Real 3D Tear-off Calendar Icon Badge Widget */}
+                  <View style={[styles.calendarIconWidget, isCurrentMonth && styles.calendarIconWidgetActive]}>
+                    <View style={[styles.calendarTopBar, isCurrentMonth && styles.calendarTopBarActive]}>
+                      <Text style={styles.calendarTopText}>{shortMonth.toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.calendarBody}>
+                      <Text style={styles.calendarBodyText}>{yearName ? yearName.slice(-2) : '26'}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.monthTitleBox}>
+                    <View style={styles.monthTitleRow}>
+                      <Text style={[styles.monthCardTitle, isCurrentMonth && styles.currentMonthCardTitle]}>
+                        {monthName} {yearName}
+                      </Text>
+                      {isCurrentMonth && (
+                        <View style={styles.activeMonthBadge}>
+                          <Text style={styles.activeMonthBadgeText}>CURRENT MONTH</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.monthCardSubtitle}>
+                      {data.length} catering {data.length === 1 ? 'event' : 'events'} listed
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.orderCountPill, isCurrentMonth && styles.orderCountPillActive]}>
+                  <Text style={[styles.orderCountPillText, isCurrentMonth && styles.orderCountPillTextActive]}>
+                    {data.length} {data.length === 1 ? 'Order' : 'Orders'}
+                  </Text>
+                </View>
               </View>
-            </View>
-          )}
+            );
+          }}
           refreshControl={
             <RefreshControl 
               refreshing={isFetching} 
@@ -879,31 +927,118 @@ const styles = StyleSheet.create({
     padding: 18,
     paddingBottom: 40,
   },
-  monthHeaderRow: {
+  monthCardContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 2,
-    marginTop: 10,
-    marginBottom: 6,
+    backgroundColor: Colors.white,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: Radii.md,
+    marginTop: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  monthHeaderTitle: {
-    fontSize: 14,
+  currentMonthCardContainer: {
+    backgroundColor: Colors.surface,
+    borderColor: Colors.primary,
+    borderWidth: 1.5,
+    ...Shadows.goldGlow,
+  },
+  monthHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  calendarIconWidget: {
+    width: 42,
+    height: 44,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+    backgroundColor: Colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  calendarIconWidgetActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.white,
+  },
+  calendarTopBar: {
+    width: '100%',
+    height: 16,
+    backgroundColor: Colors.textSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarTopBarActive: {
+    backgroundColor: Colors.primary,
+  },
+  calendarTopText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: Colors.white,
+    letterSpacing: 0.5,
+  },
+  calendarBody: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarBodyText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: Colors.text,
+  },
+  monthTitleBox: {},
+  monthTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  monthCardTitle: {
+    fontSize: 15,
     fontWeight: '800',
     color: Colors.text,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
-  monthHeaderBadge: {
+  currentMonthCardTitle: {
+    color: Colors.primaryDark,
+  },
+  activeMonthBadge: {
     backgroundColor: Colors.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: Radii.pill,
   },
-  monthHeaderBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
+  activeMonthBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
     color: Colors.primaryDark,
+    letterSpacing: 0.4,
+  },
+  monthCardSubtitle: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  orderCountPill: {
+    backgroundColor: Colors.surfaceSubtle,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radii.pill,
+  },
+  orderCountPillActive: {
+    backgroundColor: Colors.primary,
+  },
+  orderCountPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  orderCountPillTextActive: {
+    color: Colors.white,
   },
   orderCard: {
     backgroundColor: Colors.white,
