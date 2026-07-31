@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet,
   View,
@@ -107,6 +108,12 @@ const ExpensesScreen = ({ route, navigation }: any) => {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
 
   // Handle route params on mount / navigation (e.g. from OrderDetailScreen)
+  useFocusEffect(
+    useCallback(() => {
+      setShowOrderFilterModal(false);
+      setModalVisible(false);
+    }, [])
+  );
   useEffect(() => {
     if (route.params?.initialOrderId) {
       setSelectedOrderId(route.params.initialOrderId);

@@ -13,6 +13,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -72,6 +73,14 @@ const OrdersScreen = ({ navigation }: any) => {
       [monthTitle]: !prev[monthTitle]
     }));
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Immediately reset month collapse toggles and filter drawer when entering/changing screen
+      setCollapsedMonths({});
+      setIsFiltersVisible(false);
+    }, [])
+  );
 
   const { 
     data: orders = [], 
