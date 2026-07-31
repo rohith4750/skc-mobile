@@ -11,7 +11,6 @@ import {
   Image,
   Platform
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 const LOGO = require('../assets/icon.png');
 import {
@@ -20,6 +19,7 @@ import {
   TrendingUp,
   Clock,
   ChevronRight,
+  ChevronLeft,
   ArrowUpRight,
   Wallet,
   Activity,
@@ -30,6 +30,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Shadows, Radii } from '../theme/colors';
 import { useGetMobileDashboardQuery } from '../services/dashboardApi';
 import { useGetOrdersQuery } from '../services/orderApi';
+import { useGetCustomersQuery } from '../services/customerApi';
+import { useGetMenuQuery } from '../services/menuApi';
 import { useAuth } from '../services/AuthContext';
 import * as RBAC from '../utils/rbac';
 
@@ -69,11 +71,17 @@ const QuickAction = ({ title, icon: Icon, color, onPress }: any) => (
   </TouchableOpacity>
 );
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const FULL_MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 const HomeScreen = ({ navigation }: any) => {
   const { user } = useAuth();
   const [timeframe, setTimeframe] = useState<'today' | 'month' | 'all' | 'custom'>('today');
-  const [customDate, setCustomDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [customMonth, setCustomMonth] = useState<number>(new Date().getMonth() + 1);
+  const [customYear, setCustomYear] = useState<number>(new Date().getFullYear());
 
   const { 
     data: dashboardData, 
@@ -87,14 +95,23 @@ const HomeScreen = ({ navigation }: any) => {
   const { data: allOrders = [], refetch: refetchOrders } = useGetOrdersQuery(undefined, {
     refetchOnMountOrArgChange: true
   });
+  const { data: customersList = [], refetch: refetchCustomers } = useGetCustomersQuery(undefined, {
+    refetchOnMountOrArgChange: true
+  });
+  const { data: menuList = [], refetch: refetchMenu } = useGetMenuQuery(undefined, {
+    refetchOnMountOrArgChange: true
+  });
 
   const onRefresh = () => {
     refetchDashboard();
     refetchOrders();
+    refetchCustomers();
+    refetchMenu();
   };
 
   const stats = (dashboardData as any)?.data?.overview || (dashboardData as any)?.overview;
-  const recentOrders = (dashboardData as any)?.data?.recentOrders || (dashboardData as any)?.recentOrders;
+  const rawRecentOrders = (dashboardData as any)?.data?.recentOrders || (dashboardData as any)?.recentOrders;
+  const displayRecentOrders = (rawRecentOrders && rawRecentOrders.length > 0) ? rawRecentOrders : allOrders.slice(0, 5);
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'short',
@@ -102,7 +119,38 @@ const HomeScreen = ({ navigation }: any) => {
     day: 'numeric'
   });
 
-  const displayTodayOrders = stats?.todayOrders !== undefined ? stats.todayOrders : (stats?.activeOrders || 0);
+  // Today-level calculations from allOrders
+  const todayStats = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayOrdersList = allOrders.filter((o: any) => {
+      if ((o.status || '').toLowerCase() === 'cancelled') return false;
+      const dateVal = o.eventDate || o.createdAt;
+      if (!dateVal) return false;
+      const dStr = new Date(dateVal).toISOString().split('T')[0];
+      return dStr === todayStr;
+    });
+
+    let totalAmount = 0;
+    let collected = 0;
+    let pending = 0;
+
+    todayOrdersList.forEach((o: any) => {
+      const total = Number(o.totalAmount || 0);
+      const advance = Number(o.advancePaid || 0);
+      const remaining = Number(o.remainingAmount || Math.max(0, total - advance));
+
+      totalAmount += total;
+      collected += advance;
+      pending += remaining;
+    });
+
+    return {
+      totalAmount,
+      collected,
+      pending,
+      count: todayOrdersList.length,
+    };
+  }, [allOrders]);
 
   // Month-level calculations
   const monthStats = useMemo(() => {
@@ -111,7 +159,7 @@ const HomeScreen = ({ navigation }: any) => {
     const currentYear = now.getFullYear();
 
     const currentMonthOrders = allOrders.filter((o: any) => {
-      if (o.status === 'cancelled') return false;
+      if ((o.status || '').toLowerCase() === 'cancelled') return false;
       const dateVal = o.eventDate || o.createdAt;
       if (!dateVal) return false;
       const d = new Date(dateVal);
@@ -147,7 +195,7 @@ const HomeScreen = ({ navigation }: any) => {
     let pending = 0;
 
     allOrders.forEach((o: any) => {
-      if (o.status === 'cancelled') return;
+      if ((o.status || '').toLowerCase() === 'cancelled') return;
       const total = Number(o.totalAmount || 0);
       const advance = Number(o.advancePaid || 0);
       const remaining = Number(o.remainingAmount || Math.max(0, total - advance));
@@ -165,15 +213,14 @@ const HomeScreen = ({ navigation }: any) => {
     };
   }, [allOrders]);
 
-  // Custom date calculations
+  // Custom month/year calculations
   const customStats = useMemo(() => {
-    const targetDate = customDate.toISOString().split('T')[0];
-
     const targetOrders = allOrders.filter((o: any) => {
-      if (o.status === 'cancelled') return false;
+      if ((o.status || '').toLowerCase() === 'cancelled') return false;
       const dateVal = o.eventDate || o.createdAt;
       if (!dateVal) return false;
-      return dateVal.startsWith(targetDate);
+      const d = new Date(dateVal);
+      return (d.getMonth() + 1) === customMonth && d.getFullYear() === customYear;
     });
 
     let customTotalAmount = 0;
@@ -196,7 +243,16 @@ const HomeScreen = ({ navigation }: any) => {
       pending: customPending,
       count: targetOrders.length,
     };
-  }, [allOrders, customDate]);
+  }, [allOrders, customMonth, customYear]);
+
+  // Fallbacks for Overview Cards
+  const displayCustomersCount = stats?.customers !== undefined && stats.customers > 0 ? stats.customers : customersList.length;
+  const displayMenuItemsCount = stats?.menuItems !== undefined && stats.menuItems > 0 ? stats.menuItems : menuList.length;
+  const displayActiveOrdersCount = stats?.activeOrders !== undefined && stats.activeOrders > 0 ? stats.activeOrders : allOrders.filter((o: any) => {
+    const st = (o.status || '').toUpperCase();
+    return st === 'PENDING' || st === 'IN_PROGRESS' || st === 'IN PROGRESS' || st === 'PREPARING';
+  }).length;
+  const displayPendingBillsAmount = stats?.outstanding !== undefined && stats.outstanding > 0 ? stats.outstanding : allTimeStats.pending;
 
   // Dynamic values depending on selected timeframe
   const activeHeroData = useMemo(() => {
@@ -219,9 +275,9 @@ const HomeScreen = ({ navigation }: any) => {
         ordersLabel: "Total Orders",
       };
     } else if (timeframe === 'custom') {
-      const formatted = customDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+      const monthLabel = FULL_MONTH_NAMES[customMonth - 1]?.toUpperCase() || 'CUSTOM';
       return {
-        label: `${formatted} REVENUE`,
+        label: `${monthLabel} ${customYear} REVENUE`,
         totalAmount: customStats.totalAmount,
         ordersCount: customStats.count,
         collected: customStats.collected,
@@ -229,16 +285,21 @@ const HomeScreen = ({ navigation }: any) => {
         ordersLabel: "Custom Orders",
       };
     } else {
+      const heroTotal = (stats?.todayTotalAmount !== undefined && stats.todayTotalAmount > 0) ? stats.todayTotalAmount : todayStats.totalAmount;
+      const heroCollected = (stats?.todayRevenue !== undefined && stats.todayRevenue > 0) ? stats.todayRevenue : todayStats.collected;
+      const heroPending = (stats?.todayPendingAmount !== undefined && stats.todayPendingAmount > 0) ? stats.todayPendingAmount : todayStats.pending;
+      const heroCount = (stats?.todayOrders !== undefined && stats.todayOrders > 0) ? stats.todayOrders : todayStats.count;
+
       return {
         label: "TODAY'S REVENUE",
-        totalAmount: stats?.todayTotalAmount || 0,
-        ordersCount: displayTodayOrders,
-        collected: stats?.todayRevenue || 0,
-        pending: stats?.todayPendingAmount || 0,
+        totalAmount: heroTotal,
+        ordersCount: heroCount,
+        collected: heroCollected,
+        pending: heroPending,
         ordersLabel: "Today's Orders",
       };
     }
-  }, [timeframe, stats, displayTodayOrders, monthStats, allTimeStats, customStats, customDate]);
+  }, [timeframe, stats, todayStats, monthStats, allTimeStats, customStats, customMonth, customYear]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -270,6 +331,41 @@ const HomeScreen = ({ navigation }: any) => {
                 <Text style={styles.dateText}>{today}</Text>
              </View>
           </View>
+        </View>
+
+        {/* Quick Actions (Placed First) */}
+        <Text style={[styles.sectionTitle, { marginTop: 4, marginBottom: 10 }]}>Quick Actions</Text>
+        <View style={[styles.actionsGrid, { marginBottom: 18 }]}>
+          {RBAC.hasPermission(user?.role, RBAC.Permissions.CREATE_ORDER) && (
+            <QuickAction
+              title="New Order"
+              icon={ShoppingBag}
+              color={Colors.primary}
+              onPress={() => navigation.navigate('Orders', { screen: 'NewOrder' })}
+            />
+          )}
+          {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) && (
+            <QuickAction
+              title="Create Bill"
+              icon={ArrowUpRight}
+              color={Colors.info}
+              onPress={() => navigation.navigate('Bills')}
+            />
+          )}
+          {RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_EXPENSES) && (
+            <QuickAction
+              title="Add Expense"
+              icon={TrendingUp}
+              color={Colors.error}
+              onPress={() => navigation.navigate('MoreStack', { screen: 'Expenses' })}
+            />
+          )}
+          <QuickAction
+            title="Stock"
+            icon={Users}
+            color={Colors.secondary}
+            onPress={() => navigation.navigate('MoreStack', { screen: 'Stock' })}
+          />
         </View>
 
         {/* Hero Revenue Banner with Timeframe Filter */}
@@ -307,28 +403,56 @@ const HomeScreen = ({ navigation }: any) => {
 
             <TouchableOpacity 
               style={[styles.timeframeChip, timeframe === 'custom' && styles.timeframeChipActive]}
-              onPress={() => {
-                setTimeframe('custom');
-                setShowDatePicker(true);
-              }}
+              onPress={() => setTimeframe('custom')}
               activeOpacity={0.7}
             >
               <Text style={[styles.timeframeText, timeframe === 'custom' && styles.timeframeTextActive]}>Custom</Text>
             </TouchableOpacity>
           </View>
 
-          {showDatePicker && (
-            <DateTimePicker
-              value={customDate}
-              mode="date"
-              display="default"
-              onChange={(event: any, selectedDate?: Date) => {
-                setShowDatePicker(Platform.OS === 'ios');
-                if (selectedDate) {
-                  setCustomDate(selectedDate);
-                }
-              }}
-            />
+          {timeframe === 'custom' && (
+            <View style={styles.monthFilterSection}>
+              <View style={styles.yearRow}>
+                <TouchableOpacity 
+                  onPress={() => setCustomYear(y => y - 1)}
+                  style={styles.yearBtn}
+                  activeOpacity={0.7}
+                >
+                  <ChevronLeft size={14} color={Colors.white} />
+                </TouchableOpacity>
+                <Text style={styles.yearLabel}>{customYear}</Text>
+                <TouchableOpacity 
+                  onPress={() => setCustomYear(y => y + 1)}
+                  style={styles.yearBtn}
+                  activeOpacity={0.7}
+                >
+                  <ChevronRight size={14} color={Colors.white} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.monthScrollContent}
+              >
+                {MONTH_NAMES.map((m, idx) => {
+                  const mNum = idx + 1;
+                  const isSelected = customMonth === mNum;
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setCustomMonth(mNum)}
+                      style={[styles.monthChip, isSelected && styles.monthChipActive]}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.monthChipText, isSelected && styles.monthChipTextActive]}>
+                        {m}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
           )}
 
           <View style={styles.heroTop}>
@@ -338,7 +462,7 @@ const HomeScreen = ({ navigation }: any) => {
               </Text>
               <Text style={styles.heroTitle}>
                 {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) 
-                  ? (loadingDashboard ? '...' : `₹${Number(activeHeroData.totalAmount).toLocaleString('en-IN')}`)
+                  ? `₹${Number(activeHeroData.totalAmount || 0).toLocaleString('en-IN')}`
                   : "Tracking Live"}
               </Text>
             </View>
@@ -353,29 +477,29 @@ const HomeScreen = ({ navigation }: any) => {
           <View style={styles.heroBottom}>
             <View style={styles.heroStatItem}>
               <Text style={styles.heroStatLabel}>{activeHeroData.ordersLabel}</Text>
-              <Text style={styles.heroStatText}>{loadingDashboard ? '...' : activeHeroData.ordersCount}</Text>
+              <Text style={styles.heroStatText}>{activeHeroData.ordersCount}</Text>
             </View>
             
             {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) ? (
               <>
                 <View style={styles.heroStatItem}>
                   <Text style={styles.heroStatLabel}>Collected</Text>
-                  <Text style={styles.heroStatText}>₹{loadingDashboard ? '...' : Number(activeHeroData.collected).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.heroStatText}>₹{Number(activeHeroData.collected || 0).toLocaleString('en-IN')}</Text>
                 </View>
                 <View style={styles.heroStatItem}>
                   <Text style={styles.heroStatLabel}>Pending</Text>
-                  <Text style={styles.heroStatText}>₹{loadingDashboard ? '...' : Number(activeHeroData.pending).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.heroStatText}>₹{Number(activeHeroData.pending || 0).toLocaleString('en-IN')}</Text>
                 </View>
               </>
             ) : (
               <>
                 <View style={styles.heroStatItem}>
                   <Text style={styles.heroStatLabel}>On Duty</Text>
-                  <Text style={styles.heroStatText}>{loadingDashboard ? '...' : stats?.activeOrders || 0}</Text>
+                  <Text style={styles.heroStatText}>{displayActiveOrdersCount}</Text>
                 </View>
                 <View style={styles.heroStatItem}>
                   <Text style={styles.heroStatLabel}>Clients</Text>
-                  <Text style={styles.heroStatText}>{loadingDashboard ? '...' : stats?.customers || 0}</Text>
+                  <Text style={styles.heroStatText}>{displayCustomersCount}</Text>
                 </View>
               </>
             )}
@@ -388,74 +512,39 @@ const HomeScreen = ({ navigation }: any) => {
           {RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_CUSTOMERS) && (
             <StatCard
               title="Total Customers"
-              value={stats?.customers?.toString() || '0'}
+              value={displayCustomersCount.toString()}
               icon={Users}
               color={Colors.info}
-              isLoading={loadingDashboard}
+              isLoading={false}
             />
           )}
           
           <StatCard
             title={RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_MENU_STOCK) ? "Menu Items" : "Delivery Staff"}
-            value={(stats?.menuItems || stats?.stock || 0).toString()}
+            value={displayMenuItemsCount.toString()}
             icon={ShoppingBag}
             color={Colors.success}
-            isLoading={loadingDashboard}
+            isLoading={false}
           />
 
           {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) && (
             <StatCard
               title="Pending Bills"
-              value={`₹${((stats?.outstanding || 0) / 1000).toFixed(1)}k`}
+              value={`₹${(displayPendingBillsAmount / 1000).toFixed(1)}k`}
               icon={Wallet}
               color={Colors.error}
               subValue="Unpaid invoices"
-              isLoading={loadingDashboard}
+              isLoading={false}
             />
           )}
 
           <StatCard
             title="Active Orders"
-            value={stats?.activeOrders?.toString() || '0'}
+            value={displayActiveOrdersCount.toString()}
             icon={Activity}
             color={Colors.warning}
             subValue="In progress"
-            isLoading={loadingDashboard}
-          />
-        </View>
-
-        {/* Quick Actions */}
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionsGrid}>
-          {RBAC.hasPermission(user?.role, RBAC.Permissions.CREATE_ORDER) && (
-            <QuickAction
-              title="New Order"
-              icon={ShoppingBag}
-              color={Colors.primary}
-              onPress={() => navigation.navigate('Orders', { screen: 'NewOrder' })}
-            />
-          )}
-          {RBAC.hasPermission(user?.role, RBAC.Permissions.VIEW_BILLS_TAB) && (
-            <QuickAction
-              title="Create Bill"
-              icon={ArrowUpRight}
-              color={Colors.info}
-              onPress={() => navigation.navigate('Bills')}
-            />
-          )}
-          {RBAC.hasPermission(user?.role, RBAC.Permissions.MANAGE_EXPENSES) && (
-            <QuickAction
-              title="Add Expense"
-              icon={TrendingUp}
-              color={Colors.error}
-              onPress={() => navigation.navigate('MoreStack', { screen: 'Expenses' })}
-            />
-          )}
-          <QuickAction
-            title="Stock"
-            icon={Users}
-            color={Colors.secondary}
-            onPress={() => navigation.navigate('MoreStack', { screen: 'Stock' })}
+            isLoading={false}
           />
         </View>
 
@@ -467,8 +556,8 @@ const HomeScreen = ({ navigation }: any) => {
           </TouchableOpacity>
         </View>
 
-        {(recentOrders && recentOrders.length > 0) ? (
-          recentOrders.map((order: any) => {
+        {(displayRecentOrders && displayRecentOrders.length > 0) ? (
+          displayRecentOrders.map((order: any) => {
             const statusConfig: any = {
               'COMPLETED': { bg: Colors.successLight, text: Colors.success },
               'DELIVERED': { bg: Colors.successLight, text: Colors.success },
@@ -625,6 +714,52 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   timeframeTextActive: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  monthFilterSection: {
+    marginBottom: 14,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  yearRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    gap: 16,
+  },
+  yearBtn: {
+    padding: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: Radii.pill,
+  },
+  yearLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.white,
+    letterSpacing: 0.5,
+  },
+  monthScrollContent: {
+    paddingHorizontal: 2,
+    gap: 6,
+  },
+  monthChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: Radii.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  monthChipActive: {
+    backgroundColor: Colors.white,
+  },
+  monthChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  monthChipTextActive: {
     color: '#0F172A',
     fontWeight: '800',
   },

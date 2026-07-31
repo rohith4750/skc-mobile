@@ -27,11 +27,11 @@ export const Colors = {
 };
 
 export const Radii = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  pill: 9999,
+  sm: 5,
+  md: 5,
+  lg: 5,
+  xl: 5,
+  pill: 5,
 };
 
 export const Shadows = {

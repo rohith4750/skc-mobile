@@ -31,8 +31,14 @@ export interface Order {
   id: string;
   customerId: string;
   customer?: Customer;
+  eventName?: string;
+  eventDate?: string;
+  venue?: string;
+  orderType?: string;
   items: OrderItem[];
   totalAmount: number;
+  advancePaid?: number;
+  remainingAmount?: number;
   status: OrderStatus;
   deliveryDate?: string;
   address?: string;

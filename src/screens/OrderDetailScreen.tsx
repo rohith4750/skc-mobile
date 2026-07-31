@@ -10,10 +10,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { ArrowLeft, User, Phone, Calendar, Clock, Package, Share2, CheckCircle, Edit3, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, User, Phone, Calendar, Clock, Package, Share2, CheckCircle, Edit3, Trash2, DollarSign, TrendingDown, Plus } from 'lucide-react-native';
 import { Colors, Shadows, Radii } from '../theme/colors';
 
 import { useGetOrderByIdQuery, useUpdateOrderStatusMutation, useDeleteOrderMutation } from '../services/orderApi';
+import { useGetExpensesQuery } from '../services/adminApi';
 import { useToast } from '../components/Toast';
 import { shareOrderPdf } from '../utils/pdfSharing';
 
@@ -26,8 +27,23 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     isLoading 
   } = useGetOrderByIdQuery(initialOrder.id);
 
+  const { data: allExpenses = [] } = useGetExpensesQuery();
+
   const [updateStatus, { isLoading: isUpdating }] = useUpdateOrderStatusMutation();
   const [deleteOrder, { isLoading: isDeleting }] = useDeleteOrderMutation();
+
+  const eventExpenses = React.useMemo(() => {
+    if (!order?.id) return [];
+    return allExpenses.filter((e: any) => e.orderId === order.id || e.order?.id === order.id);
+  }, [allExpenses, order?.id]);
+
+  const totalEventExpenses = React.useMemo(() => {
+    return eventExpenses.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+  }, [eventExpenses]);
+
+  const estimatedProfit = React.useMemo(() => {
+    return (Number(order?.totalAmount) || 0) - totalEventExpenses;
+  }, [order?.totalAmount, totalEventExpenses]);
 
   const handleSharePress = useCallback(() => {
     const isQuotation = order.status?.toLowerCase() === 'quotation';
@@ -226,6 +242,56 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                  <Text style={styles.totalAmount}>₹{Number(order.totalAmount || 0).toLocaleString('en-IN')}</Text>
               </View>
            </View>
+        </View>
+
+        {/* Event Expenses & Profitability Card */}
+        <View style={[styles.card, Shadows.small]}>
+           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                 <TrendingDown size={18} color={Colors.primary} />
+                 <Text style={styles.cardTitle}>Event Expenses ({eventExpenses.length})</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.addExpenseLinkBtn}
+                onPress={() => navigation.navigate('Expenses', { initialOrderId: order.id, openAddModal: true })}
+                activeOpacity={0.7}
+              >
+                <Plus size={12} color={Colors.primaryDark} />
+                <Text style={styles.addExpenseLinkText}>Log Expense</Text>
+              </TouchableOpacity>
+           </View>
+           <View style={styles.divider} />
+
+           <View style={styles.expenseMetricsRow}>
+              <View style={styles.expenseMetricBox}>
+                 <Text style={styles.expenseMetricLabel}>TOTAL EXPENSE</Text>
+                 <Text style={[styles.expenseMetricVal, { color: Colors.error }]}>₹{totalEventExpenses.toLocaleString('en-IN')}</Text>
+              </View>
+              <View style={styles.expenseMetricDivider} />
+              <View style={styles.expenseMetricBox}>
+                 <Text style={styles.expenseMetricLabel}>EST. NET PROFIT</Text>
+                 <Text style={[styles.expenseMetricVal, { color: estimatedProfit >= 0 ? Colors.success : Colors.error }]}>
+                    ₹{estimatedProfit.toLocaleString('en-IN')}
+                 </Text>
+              </View>
+           </View>
+
+           {eventExpenses.length > 0 ? (
+              <View style={{ marginTop: 10 }}>
+                 {eventExpenses.map((exp: any, idx: number) => (
+                    <View key={exp.id || idx} style={styles.eventExpenseRow}>
+                       <View style={{ flex: 1 }}>
+                          <Text style={styles.eventExpenseCat}>{String(exp.category || 'Expense').toUpperCase()}</Text>
+                          <Text style={styles.eventExpenseDesc}>{exp.recipient || exp.description || 'General payment'}</Text>
+                       </View>
+                       <Text style={styles.eventExpenseAmt}>₹{Number(exp.amount || 0).toLocaleString('en-IN')}</Text>
+                    </View>
+                 ))}
+              </View>
+           ) : (
+              <Text style={styles.noExpensesText}>No expenses recorded for this event yet.</Text>
+           )}
         </View>
       </ScrollView>
 
@@ -451,6 +517,82 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: Colors.primaryDark,
+  },
+  addExpenseLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+  },
+  addExpenseLinkText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.primaryDark,
+  },
+  expenseMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: Radii.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  expenseMetricBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  expenseMetricDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: Colors.border,
+  },
+  expenseMetricLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    letterSpacing: 0.5,
+  },
+  expenseMetricVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  eventExpenseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  eventExpenseCat: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.primaryDark,
+  },
+  eventExpenseDesc: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.text,
+    marginTop: 1,
+  },
+  eventExpenseAmt: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  noExpensesText: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 8,
   },
   footer: {
     backgroundColor: Colors.white,

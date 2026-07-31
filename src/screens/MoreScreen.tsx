@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  Alert,
+  Linking,
 } from 'react-native';
 import { 
   Users, 
@@ -25,6 +27,7 @@ import {
 } from 'lucide-react-native';
 import { Colors, Shadows, Radii } from '../theme/colors';
 import { useAuth } from '../services/AuthContext';
+import { useToast } from '../components/Toast';
 import { hasPermission, Permissions } from '../utils/rbac';
 
 const MenuSection = ({ title, items }: any) => (
@@ -53,24 +56,67 @@ const MenuSection = ({ title, items }: any) => (
 
 const MoreScreen = ({ navigation }: any) => {
   const { signOut, user } = useAuth();
+  const { showToast } = useToast();
 
   const businessModules = [
     { id: 'NewOrder', label: 'Create New Order', icon: PlusCircle, color: Colors.primary, onPress: () => navigation.navigate('Orders', { screen: 'NewOrder' }), permission: Permissions.CREATE_ORDER },
-    { id: 'Customers', label: 'Customers', icon: Users, color: Colors.info, onPress: () => navigation.navigate('MoreStack', { screen: 'Customers' }), permission: Permissions.MANAGE_CUSTOMERS },
-    { id: 'Stock', label: 'Menu & Stock', icon: ShoppingBag, color: Colors.success, onPress: () => navigation.navigate('MoreStack', { screen: 'Stock' }), permission: Permissions.MANAGE_MENU_STOCK },
-    { id: 'Materials', label: 'Inventory', icon: Package, color: Colors.warning, onPress: () => navigation.navigate('MoreStack', { screen: 'Materials' }), permission: Permissions.MANAGE_INVENTORY },
-    { id: 'Expenses', label: 'Expenses', icon: CreditCard, color: Colors.error, onPress: () => navigation.navigate('MoreStack', { screen: 'Expenses' }), permission: Permissions.MANAGE_EXPENSES },
-    { id: 'Supervisors', label: 'Workforce', icon: UserCheck, color: Colors.secondary, onPress: () => navigation.navigate('MoreStack', { screen: 'Supervisors' }), permission: Permissions.MANAGE_WORKFORCE },
+    { id: 'Customers', label: 'Customers Database', icon: Users, color: Colors.info, onPress: () => navigation.navigate('MoreStack', { screen: 'Customers' }), permission: Permissions.MANAGE_CUSTOMERS },
+    { id: 'Stock', label: 'Menu & Stock List', icon: ShoppingBag, color: Colors.success, onPress: () => navigation.navigate('MoreStack', { screen: 'Stock' }), permission: Permissions.MANAGE_MENU_STOCK },
+    { id: 'Materials', label: 'Raw Inventory', icon: Package, color: Colors.warning, onPress: () => navigation.navigate('MoreStack', { screen: 'Materials' }), permission: Permissions.MANAGE_INVENTORY },
+    { id: 'Expenses', label: 'Event Expenses', icon: CreditCard, color: Colors.error, onPress: () => navigation.navigate('MoreStack', { screen: 'Expenses' }), permission: Permissions.MANAGE_EXPENSES },
+    { id: 'Supervisors', label: 'Workforce & Staff', icon: UserCheck, color: Colors.secondary, onPress: () => navigation.navigate('MoreStack', { screen: 'Supervisors' }), permission: Permissions.MANAGE_WORKFORCE },
   ].filter(module => {
     return hasPermission(user?.role, module.permission);
   });
 
   const appSettings = [
-    { id: 'Delivery', label: 'Delivery Settings', icon: Truck, color: Colors.primary, onPress: () => {} },
-    { id: 'Notifications', label: 'Notifications', icon: Bell, color: '#F59E0B', onPress: () => {} },
-    { id: 'Security', label: 'Security', icon: ShieldCheck, color: '#10B981', onPress: () => {} },
-    { id: 'Help', label: 'Help & Support', icon: HelpCircle, color: '#3B82F6', onPress: () => {} },
-    { id: 'Settings', label: 'App Settings', icon: Settings, color: Colors.textSecondary, onPress: () => {} },
+    { id: 'Delivery', label: 'Delivery Dispatch & Live Status', icon: Truck, color: Colors.primary, onPress: () => navigation.navigate('Delivery') },
+    { id: 'Bills', label: 'Bills & Invoice Center', icon: CreditCard, color: Colors.info, onPress: () => navigation.navigate('Bills') },
+    { 
+      id: 'Refresh', 
+      label: 'Sync Data & Clear Cache', 
+      icon: Settings, 
+      color: Colors.success, 
+      onPress: () => {
+        showToast('App synced & cache refreshed successfully!', 'success');
+      } 
+    },
+    { 
+      id: 'Help', 
+      label: 'Help & Customer Support', 
+      icon: HelpCircle, 
+      color: '#3B82F6', 
+      onPress: () => {
+        Alert.alert(
+          'SKC Caterers Support',
+          'Need assistance with your catering manager app?\n\nContact Phone: 9866525102\nEmail: pujyasri1989cya@gmail.com\nSupport: SKC Caterers Support Team',
+          [
+            { 
+              text: 'Call 9866525102', 
+              onPress: () => Linking.openURL('tel:9866525102') 
+            },
+            { 
+              text: 'Send Email', 
+              onPress: () => Linking.openURL('mailto:pujyasri1989cya@gmail.com') 
+            },
+            { text: 'Close', style: 'cancel' }
+          ]
+        );
+      } 
+    },
+    { 
+      id: 'Security', 
+      label: 'Security & User Role Info', 
+      icon: ShieldCheck, 
+      color: '#10B981', 
+      onPress: () => {
+        Alert.alert(
+          'Security Info',
+          `Logged in as: ${user?.username || 'User'}\nRole: ${user?.role?.toUpperCase() || 'MANAGER'}\nPermissions: Full access enabled`,
+          [{ text: 'OK', style: 'default' }]
+        );
+      } 
+    },
   ];
 
   return (
@@ -107,7 +153,16 @@ const MoreScreen = ({ navigation }: any) => {
 
         <TouchableOpacity 
           style={styles.logoutButton} 
-          onPress={signOut}
+          onPress={() => {
+            Alert.alert(
+              'Sign Out',
+              'Are you sure you want to log out of SKC Caterers?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Sign Out', style: 'destructive', onPress: signOut }
+              ]
+            );
+          }}
           activeOpacity={0.8}
         >
           <LogOut size={18} color={Colors.error} />

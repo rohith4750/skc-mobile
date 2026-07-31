@@ -37,9 +37,15 @@ const LoginScreen = ({ navigation }: any) => {
     setLoading(true);
     setError('');
     try {
-      await signIn(username, password);
-      showToast('Welcome back!', 'success');
-    } catch (err) {
+      const res = await signIn(username, password);
+      if (res && res.success) {
+        showToast('Welcome back!', 'success');
+      } else {
+        const msg = res?.message || 'Invalid username or password';
+        showToast(msg, 'error');
+        setError(msg);
+      }
+    } catch (err: any) {
       showToast('Invalid credentials or network error', 'error');
       setError('Invalid username or password');
     } finally {

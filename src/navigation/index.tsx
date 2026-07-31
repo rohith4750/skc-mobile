@@ -110,15 +110,37 @@ const MainTabs = () => {
         />
       )}
       {canViewBills && (
-        <Tab.Screen name="Bills" component={BillsScreen} />
+        <Tab.Screen 
+          name="Bills" 
+          component={BillsScreen} 
+          listeners={({ navigation }) => ({
+            tabPress: () => {
+              navigation.navigate('Bills');
+            },
+          })}
+        />
       )}
       {canViewDelivery && (
-        <Tab.Screen name="Delivery" component={DeliveryScreen} />
+        <Tab.Screen 
+          name="Delivery" 
+          component={DeliveryScreen} 
+          listeners={({ navigation }) => ({
+            tabPress: () => {
+              navigation.navigate('Delivery');
+            },
+          })}
+        />
       )}
       <Tab.Screen 
         name="MoreStack" 
         component={MoreStack} 
         options={{ tabBarLabel: 'More' }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('MoreStack', { screen: 'MoreGrid' });
+          },
+        })}
       />
     </Tab.Navigator>
   );

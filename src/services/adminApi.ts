@@ -117,6 +117,14 @@ export const adminApi = apiSlice.injectEndpoints({
       query: (id) => `/bills/${id}`,
       providesTags: (_result, _error, id) => [{ type: 'Order', id }],
     }),
+    updateExpense: builder.mutation<any, { id: string; [key: string]: any }>({
+      query: ({ id, ...body }) => ({
+        url: `/expenses/${id}`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: ['Expense'],
+    }),
   }),
 });
 
@@ -133,6 +141,7 @@ export const {
   useUpdateCustomerMutation,
   useDeleteCustomerMutation,
   useCreateExpenseMutation,
+  useUpdateExpenseMutation,
   useCreateWorkforceMutation,
   useRecordWorkforcePaymentMutation,
   useCreateStockItemMutation,

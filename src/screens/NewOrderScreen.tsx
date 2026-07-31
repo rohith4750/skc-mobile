@@ -13,7 +13,8 @@ import {
   Alert,
   Modal,
   FlatList,
-  StatusBar
+  StatusBar,
+  Switch
 } from 'react-native';
 import { 
   ArrowLeft, 
@@ -38,8 +39,10 @@ import {
 import { Colors, Shadows, Radii } from '../theme/colors';
 import { useToast } from '../components/Toast';
 import { useGetCustomersQuery, useCreateCustomerMutation } from '../services/customerApi';
-import { useGetMenuQuery } from '../services/menuApi';
+import { useGetMenuQuery, useCreateMenuItemMutation } from '../services/menuApi';
 import { useCreateOrderMutation, useUpdateOrderMutation } from '../services/orderApi';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
 
 const PAYMENT_METHODS = [
   { label: 'Cash', value: 'cash' },
@@ -100,6 +103,98 @@ interface FormStall {
   services: string[];
 }
 
+const FOOD_CATEGORIES = [
+  { id: 'all', label: 'All Items' },
+  { id: 'breakfast', label: '🥞 Breakfast' },
+  { id: 'sweets', label: '🍬 Sweets' },
+  { id: 'rice', label: '🍚 Rice & Biryani' },
+  { id: 'curry', label: '🍛 Curries' },
+  { id: 'dal', label: '🍲 Dal & Liquids' },
+  { id: 'roti', label: '🫓 Rotis & Breads' },
+  { id: 'starter', label: '🧆 Starters' },
+  { id: 'chutney', label: '🥒 Pickles' },
+  { id: 'drinks', label: '🍹 Drinks' },
+  { id: 'common', label: '🍽️ Extras' },
+];
+
+const getItemSubCategory = (item: any): string => {
+  const types = Array.isArray(item?.type) ? item.type.map((t: any) => String(t || '').toLowerCase()) : [String(item?.type || '').toLowerCase()];
+  const category = String(item?.category || '').toLowerCase();
+  const desc = String(item?.description || '').toLowerCase();
+  const name = String(item?.name || '').toLowerCase();
+
+  if (
+    types.includes('sweets') || types.includes('saree') || types.includes('saare') ||
+    category.includes('sweet') || category.includes('saare') || desc.includes('sweet') ||
+    name.includes('laddu') || name.includes('jamoon') || name.includes('jamun') || name.includes('payasam') ||
+    name.includes('halwa') || name.includes('kheer') || name.includes('burfi') || name.includes('peda') ||
+    name.includes('mysorepak') || name.includes('jilebi') || name.includes('badusha') || name.includes('pongali')
+  ) {
+    return 'sweets';
+  }
+
+  if (
+    types.includes('rice') || category.includes('rice') || desc.includes('rice') ||
+    name.includes('rice') || name.includes('biryani') || name.includes('pulihora') || name.includes('pulao') ||
+    name.includes('bath') || name.includes('baath') || name.includes('fried rice')
+  ) {
+    return 'rice';
+  }
+
+  if (
+    types.includes('dal') || types.includes('liquid') || category.includes('dal') || category.includes('liquid') ||
+    name.includes('pappu') || name.includes('dal') || name.includes('sambar') || name.includes('rasam') ||
+    name.includes('pulusu') || name.includes('chaaru')
+  ) {
+    return 'dal';
+  }
+
+  if (
+    types.includes('roti') || category.includes('roti') || desc.includes('roti') ||
+    name.includes('roti') || name.includes('naan') || name.includes('pulka') || name.includes('paratha')
+  ) {
+    return 'roti';
+  }
+
+  if (
+    types.includes('pickle') || types.includes('chutney') || category.includes('pickle') || category.includes('chutney') ||
+    name.includes('pickle') || name.includes('chutney') || name.includes('pachadi') || name.includes('podi')
+  ) {
+    return 'chutney';
+  }
+
+  if (
+    types.includes('starter') || types.includes('fry') || category.includes('starter') || category.includes('fry') ||
+    name.includes('fry') || name.includes('pakoda') || name.includes('bajji') || name.includes('65') || name.includes('manchuria')
+  ) {
+    return 'starter';
+  }
+
+  if (
+    types.includes('welcome_drink') || types.includes('soup') || category.includes('drink') || category.includes('water') ||
+    name.includes('juice') || name.includes('soup') || name.includes('water') || name.includes('coffee') || name.includes('tea')
+  ) {
+    return 'drinks';
+  }
+
+  if (
+    types.includes('north_indian') || types.includes('south_indian_curry') || category.includes('curry') ||
+    name.includes('curry') || name.includes('masala') || name.includes('kurma') || name.includes('paneer') || name.includes('aalu')
+  ) {
+    return 'curry';
+  }
+
+  if (
+    types.includes('breakfast') || types.includes('tiffins') || category.includes('breakfast') || desc.includes('breakfast') ||
+    name.includes('idli') || name.includes('dosa') || name.includes('upma') || name.includes('pesarattu') ||
+    name.includes('uthappa') || name.includes('pongal') || name.includes('poori') || name.includes('wada') || name.includes('vada')
+  ) {
+    return 'breakfast';
+  }
+
+  return 'common';
+};
+
 const NewOrderScreen = ({ route, navigation }: any) => {
   const orderToEdit = route.params?.orderToEdit;
   const isEditing = !!orderToEdit;
@@ -109,8 +204,14 @@ const NewOrderScreen = ({ route, navigation }: any) => {
   const { data: customers = [], isLoading: loadingCustomers } = useGetCustomersQuery();
   const { data: menuItems = [], isLoading: loadingMenu } = useGetMenuQuery();
   const [createCustomer, { isLoading: isSavingCustomer }] = useCreateCustomerMutation();
+  const [createMenuItem, { isLoading: isCreatingMenuItem }] = useCreateMenuItemMutation();
   const [createOrder, { isLoading: isCreatingOrder }] = useCreateOrderMutation();
   const [updateOrder, { isLoading: isUpdatingOrder }] = useUpdateOrderMutation();
+
+  // Quick Add Dish Form State
+  const [quickAddDishModalVisible, setQuickAddDishModalVisible] = useState(false);
+  const [quickAddDishForm, setQuickAddDishForm] = useState({ name: '', nameTelugu: '', category: 'breakfast' });
+  const [quickAddTargetMealId, setQuickAddTargetMealId] = useState<string | null>(null);
 
   // Form State
   const [customerId, setCustomerId] = useState('');
@@ -121,8 +222,11 @@ const NewOrderScreen = ({ route, navigation }: any) => {
   const [showStalls, setShowStalls] = useState(false);
   const [discount, setDiscount] = useState('');
   const [transportCost, setTransportCost] = useState('');
+  const [serviceCost, setServiceCost] = useState('');
   const [waterBottlesCost, setWaterBottlesCost] = useState('');
   const [advancePaid, setAdvancePaid] = useState('');
+  const [isFullyPaid, setIsFullyPaid] = useState(false);
+  const [previousPartialAdvance, setPreviousPartialAdvance] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card' | 'bank_transfer' | 'other'>('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
 
@@ -130,6 +234,63 @@ const NewOrderScreen = ({ route, navigation }: any) => {
   const [expandedSection, setExpandedSection] = useState<'customer' | 'meals' | 'stalls' | 'financials' | null>('customer');
   const [expandedMealCards, setExpandedMealCards] = useState<Record<string, boolean>>({});
   const [expandedStallCards, setExpandedStallCards] = useState<Record<string, boolean>>({});
+
+  // Date & Time Picker State
+  const [activeDatePickerMealId, setActiveDatePickerMealId] = useState<string | null>(null);
+  const [activeTimePickerMealId, setActiveTimePickerMealId] = useState<string | null>(null);
+
+  const getDateObj = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        return new Date(year, month, day);
+      }
+    }
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
+
+  const formatDateStr = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getTimeObj = (timeStr: string) => {
+    const d = new Date();
+    if (!timeStr) return d;
+    try {
+      const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        const ampm = match[3];
+        if (ampm) {
+          if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+          if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+        }
+        d.setHours(hours, minutes, 0, 0);
+        return d;
+      }
+    } catch (e) {}
+    return d;
+  };
+
+  const formatTimeStr = (d: Date) => {
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const minStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
+    return `${hours}:${minStr} ${ampm}`;
+  };
+
   
   // Modals & Search State
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
@@ -139,6 +300,7 @@ const NewOrderScreen = ({ route, navigation }: any) => {
 
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeMealIdForItemSelection, setActiveMealIdForItemSelection] = useState<string | null>(null);
   const [activeStallIdForItemSelection, setActiveStallIdForItemSelection] = useState<string | null>(null);
 
@@ -151,8 +313,11 @@ const NewOrderScreen = ({ route, navigation }: any) => {
     setShowStalls(false);
     setDiscount('');
     setTransportCost('');
+    setServiceCost('');
     setWaterBottlesCost('');
     setAdvancePaid('');
+    setIsFullyPaid(false);
+    setPreviousPartialAdvance('');
     setPaymentMethod('cash');
     setPaymentNotes('');
     setExpandedSection('customer');
@@ -170,8 +335,13 @@ const NewOrderScreen = ({ route, navigation }: any) => {
       setOrderType(orderToEdit.orderType || 'EVENT');
       setDiscount(orderToEdit.discount ? String(orderToEdit.discount) : '');
       setTransportCost(orderToEdit.transportCost ? String(orderToEdit.transportCost) : '');
+      setServiceCost(orderToEdit.serviceCost ? String(orderToEdit.serviceCost) : '');
       setWaterBottlesCost(orderToEdit.waterBottlesCost ? String(orderToEdit.waterBottlesCost) : '');
-      setAdvancePaid(orderToEdit.advancePaid ? String(orderToEdit.advancePaid) : '');
+      const advStr = orderToEdit.advancePaid ? String(orderToEdit.advancePaid) : '';
+      setAdvancePaid(advStr);
+      const isFull = Number(orderToEdit.remainingAmount) === 0 || (Number(orderToEdit.advancePaid) > 0 && Number(orderToEdit.advancePaid) >= Number(orderToEdit.totalAmount));
+      setIsFullyPaid(isFull);
+      setPreviousPartialAdvance(isFull ? '' : advStr);
       setPaymentMethod(orderToEdit.paymentMethod || 'cash');
       setPaymentNotes(orderToEdit.internalNote || '');
 
@@ -324,6 +494,40 @@ const NewOrderScreen = ({ route, navigation }: any) => {
     }
   }, [isEditing, orderToEdit]);
 
+  // Focus listener to ensure fresh form when creating a new order
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      const currentOrderToEdit = route.params?.orderToEdit;
+      if (!currentOrderToEdit) {
+        resetForm();
+        const freshMealId = Math.random().toString(36).substring(2, 9);
+        const freshMeal: FormMealType = {
+          id: freshMealId,
+          eventName: '',
+          venue: '',
+          menuType: '',
+          selectedMenuItems: [],
+          pricingMethod: 'manual',
+          numberOfPlates: '',
+          platePrice: '',
+          manualAmount: '',
+          date: new Date().toISOString().split('T')[0],
+          time: '',
+          services: [],
+          numberOfMembers: '',
+          itemCustomizations: {},
+          itemQuantities: {},
+          itemPrices: {},
+          description: ''
+        };
+        setMealTypes([freshMeal]);
+        setExpandedMealCards({ [freshMealId]: true });
+      }
+    });
+    return unsubscribe;
+  }, [navigation, route.params]);
+
+
   const filteredCustomersList = useMemo(() => {
     if (!customerSearch.trim()) return customers;
     const query = customerSearch.toLowerCase();
@@ -333,14 +537,19 @@ const NewOrderScreen = ({ route, navigation }: any) => {
   }, [customers, customerSearch]);
 
   const filteredMenuItemsList = useMemo(() => {
-    const activeMenu = menuItems.filter(item => item.isActive);
+    let activeMenu = menuItems.filter(item => item.isActive);
+
+    if (selectedCategory !== 'all') {
+      activeMenu = activeMenu.filter(item => getItemSubCategory(item) === selectedCategory);
+    }
+
     if (!itemSearch.trim()) return activeMenu;
     const query = itemSearch.toLowerCase();
     return activeMenu.filter(item => 
       item.name.toLowerCase().includes(query) || 
       (item.nameTelugu && item.nameTelugu.includes(query))
     );
-  }, [menuItems, itemSearch]);
+  }, [menuItems, selectedCategory, itemSearch]);
 
   const selectedCustomerObj = useMemo(() => {
     return customers.find(c => c.id === customerId);
@@ -393,15 +602,24 @@ const NewOrderScreen = ({ route, navigation }: any) => {
     }, 0) : 0;
 
     const transport = parseFloat(transportCost) || 0;
+    const service = parseFloat(serviceCost) || 0;
     const discountVal = parseFloat(discount) || 0;
     const waterBottles = waterTotal > 0 ? waterTotal : (parseFloat(waterBottlesCost) || 0);
 
-    const total = Math.max(0, mealTypesTotal + transport + waterBottles + stallsTotal - discountVal);
+    const total = Math.max(0, mealTypesTotal + transport + service + waterBottles + stallsTotal - discountVal);
     const advance = parseFloat(advancePaid) || 0;
     const balance = Math.max(0, total - advance);
 
     return { total, balance, waterTotal, stallsTotal, mealTypesTotal };
-  }, [mealTypes, stalls, showStalls, transportCost, discount, waterBottlesCost, advancePaid, menuItems]);
+  }, [mealTypes, stalls, showStalls, transportCost, serviceCost, discount, waterBottlesCost, advancePaid, menuItems]);
+
+  // Keep advancePaid updated if full paid toggle is active
+  useEffect(() => {
+    if (isFullyPaid) {
+      setAdvancePaid(String(totals.total));
+    }
+  }, [totals.total, isFullyPaid]);
+
 
   const handleAddMealType = () => {
     const id = generateId();
@@ -545,7 +763,69 @@ const NewOrderScreen = ({ route, navigation }: any) => {
     setActiveMealIdForItemSelection(mealId);
     setActiveStallIdForItemSelection(stallId);
     setItemSearch('');
+
+    if (mealId) {
+      const meal = mealTypes.find(mt => mt.id === mealId);
+      const sName = (meal?.menuType || meal?.eventName || '').toLowerCase();
+      if (sName.includes('breakfast') || sName.includes('tiffin') || sName.includes('morning')) {
+        setSelectedCategory('breakfast');
+      } else if (sName.includes('sweet') || sName.includes('saree')) {
+        setSelectedCategory('sweets');
+      } else {
+        setSelectedCategory('all');
+      }
+    } else {
+      setSelectedCategory('all');
+    }
+
     setItemModalVisible(true);
+  };
+
+  const handleQuickAddDish = async () => {
+    if (!quickAddDishForm.name.trim()) {
+      Alert.alert('Required', 'Dish name is required');
+      return;
+    }
+
+    try {
+      const newDishPayload = {
+        name: quickAddDishForm.name.trim(),
+        nameTelugu: quickAddDishForm.nameTelugu.trim() || undefined,
+        type: [quickAddDishForm.category],
+        isCommon: false,
+        isActive: true,
+      };
+
+      const createdDish = await createMenuItem(newDishPayload).unwrap();
+      const dishId = createdDish.id || (createdDish as any)._id;
+
+      showToast(`Added "${createdDish.name}" to menu & session!`, 'success');
+
+      // Add newly created dish to target meal session
+      const targetId = quickAddTargetMealId || activeMealIdForItemSelection;
+      if (targetId) {
+        setMealTypes(prev => prev.map(mt => {
+          if (mt.id === targetId) {
+            const isSelected = mt.selectedMenuItems.includes(dishId);
+            if (!isSelected) {
+              return {
+                ...mt,
+                selectedMenuItems: [...mt.selectedMenuItems, dishId],
+                itemQuantities: { ...mt.itemQuantities, [dishId]: '1' },
+                itemCustomizations: { ...mt.itemCustomizations }
+              };
+            }
+          }
+          return mt;
+        }));
+      }
+
+      setQuickAddDishForm({ name: '', nameTelugu: '', category: 'breakfast' });
+      setQuickAddDishModalVisible(false);
+    } catch (err: any) {
+      console.error('Failed to create quick menu item:', err);
+      Alert.alert('Error', 'Failed to save new dish to menu');
+    }
   };
 
   const handleToggleItem = (itemId: string) => {
@@ -749,6 +1029,7 @@ const NewOrderScreen = ({ route, navigation }: any) => {
         mealTypeAmounts: mealTypeAmountsPayload,
         stalls: stallsPayload,
         transportCost: parseFloat(transportCost) || 0,
+        serviceCost: parseFloat(serviceCost) || 0,
         waterBottlesCost: parseFloat(waterBottlesCost) || 0,
         discount: parseFloat(discount) || 0,
         paymentMethod,
@@ -763,9 +1044,10 @@ const NewOrderScreen = ({ route, navigation }: any) => {
       } else {
         await createOrder({ ...payload, status: 'pending' }).unwrap();
         showToast('Order created successfully!', 'success');
-        resetForm();
       }
 
+      resetForm();
+      navigation.setParams({ orderToEdit: undefined });
       navigation.goBack();
     } catch (err: any) {
       console.error('Error submitting order:', err);
@@ -804,7 +1086,15 @@ const NewOrderScreen = ({ route, navigation }: any) => {
       >
         {/* Header */}
         <View style={styles.screenHeader}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <TouchableOpacity 
+            onPress={() => {
+              resetForm();
+              navigation.setParams({ orderToEdit: undefined });
+              navigation.goBack();
+            }} 
+            style={styles.backBtn} 
+            activeOpacity={0.7}
+          >
             <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
           <View>
@@ -925,31 +1215,64 @@ const NewOrderScreen = ({ route, navigation }: any) => {
                           <View style={styles.formRow}>
                             <View style={{ flex: 1, marginRight: 8 }}>
                               <Text style={styles.cardInputLabel}>Event Date *</Text>
-                              <View style={styles.smallInputContainer}>
-                                <Calendar size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
-                                <TextInput 
-                                  style={styles.smallInput}
-                                  value={mt.date}
-                                  onChangeText={(t) => handleUpdateMealField(mt.id, 'date', t)}
-                                  placeholder="YYYY-MM-DD"
-                                  placeholderTextColor={Colors.textTertiary}
+                              <TouchableOpacity 
+                                style={styles.smallInputContainer}
+                                onPress={() => setActiveDatePickerMealId(mt.id)}
+                                activeOpacity={0.7}
+                              >
+                                <Calendar size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+                                <Text style={[styles.smallInputText, !mt.date && { color: Colors.textTertiary }]}>
+                                  {mt.date || 'Select Date'}
+                                </Text>
+                              </TouchableOpacity>
+                              {activeDatePickerMealId === mt.id && (
+                                <DateTimePicker
+                                  value={getDateObj(mt.date)}
+                                  mode="date"
+                                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                  onChange={(event: any, selectedDate?: Date) => {
+                                    if (Platform.OS === 'android') {
+                                      setActiveDatePickerMealId(null);
+                                    }
+                                    if (selectedDate && event.type !== 'dismissed') {
+                                      handleUpdateMealField(mt.id, 'date', formatDateStr(selectedDate));
+                                      if (Platform.OS === 'ios') setActiveDatePickerMealId(null);
+                                    }
+                                  }}
                                 />
-                              </View>
+                              )}
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text style={styles.cardInputLabel}>Time</Text>
-                              <View style={styles.smallInputContainer}>
-                                <Clock size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
-                                <TextInput 
-                                  style={styles.smallInput}
-                                  value={mt.time}
-                                  onChangeText={(t) => handleUpdateMealField(mt.id, 'time', t)}
-                                  placeholder="12:30 PM"
-                                  placeholderTextColor={Colors.textTertiary}
+                              <TouchableOpacity 
+                                style={styles.smallInputContainer}
+                                onPress={() => setActiveTimePickerMealId(mt.id)}
+                                activeOpacity={0.7}
+                              >
+                                <Clock size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+                                <Text style={[styles.smallInputText, !mt.time && { color: Colors.textTertiary }]}>
+                                  {mt.time || 'Select Time'}
+                                </Text>
+                              </TouchableOpacity>
+                              {activeTimePickerMealId === mt.id && (
+                                <DateTimePicker
+                                  value={getTimeObj(mt.time)}
+                                  mode="time"
+                                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                  onChange={(event: any, selectedDate?: Date) => {
+                                    if (Platform.OS === 'android') {
+                                      setActiveTimePickerMealId(null);
+                                    }
+                                    if (selectedDate && event.type !== 'dismissed') {
+                                      handleUpdateMealField(mt.id, 'time', formatTimeStr(selectedDate));
+                                      if (Platform.OS === 'ios') setActiveTimePickerMealId(null);
+                                    }
+                                  }}
                                 />
-                              </View>
+                              )}
                             </View>
                           </View>
+
 
                           <Text style={styles.cardInputLabel}>Venue Address</Text>
                           <View style={styles.smallInputContainer}>
@@ -1032,13 +1355,78 @@ const NewOrderScreen = ({ route, navigation }: any) => {
 
                           <View style={styles.menuSelectionHeader}>
                             <Text style={styles.cardInputLabel}>Selected Items ({mt.selectedMenuItems.length})</Text>
-                            <TouchableOpacity 
-                              style={styles.commonItemsBtn}
-                              onPress={() => handleSelectCommonItems(mt.id)}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={styles.commonItemsBtnText}>+ Common Items</Text>
-                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                              <TouchableOpacity 
+                                style={styles.quickCreateDishHeaderBtn}
+                                onPress={() => {
+                                  setQuickAddTargetMealId(mt.id);
+                                  const sName = (mt.menuType || mt.eventName || '').toLowerCase();
+                                  const defaultCat = sName.includes('breakfast') || sName.includes('tiffin') ? 'breakfast' : 'breakfast';
+                                  setQuickAddDishForm({ name: '', nameTelugu: '', category: defaultCat });
+                                  setQuickAddDishModalVisible(true);
+                                }}
+                                activeOpacity={0.7}
+                              >
+                                <Plus size={11} color={Colors.primaryDark} />
+                                <Text style={styles.quickCreateDishHeaderBtnText}>+ New Dish</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity 
+                                style={styles.commonItemsBtn}
+                                onPress={() => handleSelectCommonItems(mt.id)}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={styles.commonItemsBtnText}>+ Common</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+
+                          {/* Quick Add Menu Section */}
+                          <View style={styles.quickAddSection}>
+                            <Text style={styles.quickAddTitle}>⚡ Quick Add Dishes:</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickAddScroll}>
+                              {menuItems.filter(item => {
+                                if (!item.isActive) return false;
+                                const sessionName = (mt.menuType || mt.eventName || '').toLowerCase();
+                                const cat = getItemSubCategory(item);
+                                if (sessionName.includes('breakfast') || sessionName.includes('tiffin')) {
+                                  return cat === 'breakfast' || cat === 'drinks' || cat === 'common';
+                                }
+                                return true;
+                              }).slice(0, 15).map(item => {
+                                const isSel = mt.selectedMenuItems.includes(item.id);
+                                return (
+                                  <TouchableOpacity
+                                    key={item.id}
+                                    onPress={() => {
+                                      const newIds = isSel 
+                                        ? mt.selectedMenuItems.filter(id => id !== item.id)
+                                        : [...mt.selectedMenuItems, item.id];
+                                      
+                                      const newQuantities = { ...mt.itemQuantities };
+                                      const newCustomizations = { ...mt.itemCustomizations };
+                                      if (!isSel) {
+                                        newQuantities[item.id] = '1';
+                                        if (item.description) newCustomizations[item.id] = item.description;
+                                      } else {
+                                        delete newQuantities[item.id];
+                                        delete newCustomizations[item.id];
+                                      }
+
+                                      handleUpdateMealField(mt.id, 'selectedMenuItems', newIds);
+                                      handleUpdateMealField(mt.id, 'itemQuantities', newQuantities);
+                                      handleUpdateMealField(mt.id, 'itemCustomizations', newCustomizations);
+                                    }}
+                                    style={[styles.quickItemChip, isSel && styles.quickItemChipActive]}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Text style={[styles.quickItemChipText, isSel && styles.quickItemChipTextActive]}>
+                                      {isSel ? '✓ ' : '+ '}{item.name}
+                                    </Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </ScrollView>
                           </View>
 
                           <TouchableOpacity 
@@ -1278,6 +1666,20 @@ const NewOrderScreen = ({ route, navigation }: any) => {
 
                 <View style={styles.formRow}>
                   <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.inputLabel}>Other Charges (₹)</Text>
+                    <View style={styles.textInputContainer}>
+                      <DollarSign size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
+                      <TextInput 
+                        style={styles.textInput}
+                        value={serviceCost}
+                        keyboardType="numeric"
+                        onChangeText={setServiceCost}
+                        placeholder="0.00"
+                        placeholderTextColor={Colors.textTertiary}
+                      />
+                    </View>
+                  </View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.inputLabel}>Discount (₹)</Text>
                     <View style={styles.textInputContainer}>
                       <Percent size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
@@ -1291,21 +1693,55 @@ const NewOrderScreen = ({ route, navigation }: any) => {
                       />
                     </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>Advance Paid (₹)</Text>
-                    <View style={styles.textInputContainer}>
-                      <DollarSign size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
-                      <TextInput 
-                        style={styles.textInput}
-                        value={advancePaid}
-                        keyboardType="numeric"
-                        onChangeText={setAdvancePaid}
-                        placeholder="0.00"
-                        placeholderTextColor={Colors.textTertiary}
-                      />
-                    </View>
-                  </View>
                 </View>
+
+                {/* Full Paid Toggle Box */}
+                <View style={styles.fullPaidContainer}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fullPaidTitle}>Mark as Fully Paid</Text>
+                    <Text style={styles.fullPaidSubtitle}>Auto-set advance equal to total (₹{totals.total.toLocaleString('en-IN')})</Text>
+                  </View>
+                  <Switch 
+                    value={isFullyPaid}
+                    onValueChange={(val) => {
+                      setIsFullyPaid(val);
+                      if (val) {
+                        if (advancePaid !== String(totals.total)) {
+                          setPreviousPartialAdvance(advancePaid);
+                        }
+                        setAdvancePaid(String(totals.total));
+                      } else {
+                        setAdvancePaid(previousPartialAdvance || '0');
+                      }
+                    }}
+                    trackColor={{ false: Colors.border, true: Colors.success + '60' }}
+                    thumbColor={isFullyPaid ? Colors.success : Colors.textTertiary}
+                  />
+                </View>
+
+                <Text style={styles.inputLabel}>Advance / Amount Paid (₹)</Text>
+                <View style={styles.textInputContainer}>
+                  <DollarSign size={14} color={Colors.textTertiary} style={{ marginRight: 6 }} />
+                  <TextInput 
+                    style={styles.textInput}
+                    value={advancePaid}
+                    keyboardType="numeric"
+                    onChangeText={(val) => {
+                      setAdvancePaid(val);
+                      const numVal = parseFloat(val) || 0;
+                      if (numVal !== totals.total) {
+                        setIsFullyPaid(false);
+                        setPreviousPartialAdvance(val);
+                      } else if (numVal === totals.total && totals.total > 0) {
+                        setIsFullyPaid(true);
+                      }
+                    }}
+                    placeholder="0.00"
+                    placeholderTextColor={Colors.textTertiary}
+                  />
+                </View>
+
+
 
                 <Text style={styles.inputLabel}>Payment Method</Text>
                 <View style={styles.paymentMethodRow}>
@@ -1523,6 +1959,31 @@ const NewOrderScreen = ({ route, navigation }: any) => {
               />
             </View>
 
+            {/* Food Category Filters */}
+            <View style={{ marginBottom: 6 }}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.categoryScroll}
+              >
+                {FOOD_CATEGORIES.map(cat => {
+                  const isSelected = selectedCategory === cat.id;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      onPress={() => setSelectedCategory(cat.id)}
+                      style={[styles.categoryChip, isSelected && styles.categoryChipActive]}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.categoryChipText, isSelected && styles.categoryChipTextActive]}>
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
             {loadingMenu ? (
               <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
             ) : (
@@ -1556,8 +2017,28 @@ const NewOrderScreen = ({ route, navigation }: any) => {
                   );
                 }}
                 ListEmptyComponent={
-                  <View style={styles.centerBox}>
-                    <Text style={styles.emptyMsg}>No dishes match your query</Text>
+                  <View style={[styles.centerBox, { paddingVertical: 30 }]}>
+                    <Text style={styles.emptyMsg}>
+                      {itemSearch.trim() ? `No dish found for "${itemSearch}"` : 'No dishes in this category'}
+                    </Text>
+                    {itemSearch.trim().length > 0 && (
+                      <TouchableOpacity
+                        style={styles.dynamicCreateBtn}
+                        onPress={() => {
+                          setQuickAddTargetMealId(activeMealIdForItemSelection);
+                          setQuickAddDishForm({ 
+                            name: itemSearch.trim(), 
+                            nameTelugu: '', 
+                            category: selectedCategory !== 'all' ? selectedCategory : 'breakfast' 
+                          });
+                          setQuickAddDishModalVisible(true);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Plus size={14} color={Colors.white} style={{ marginRight: 6 }} />
+                        <Text style={styles.dynamicCreateBtnText}>Create "{itemSearch.trim()}" as New Dish</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 }
               />
@@ -1573,6 +2054,73 @@ const NewOrderScreen = ({ route, navigation }: any) => {
               </TouchableOpacity>
             </View>
           </SafeAreaView>
+        </Modal>
+
+        {/* QUICK CREATE NEW DISH MODAL */}
+        <Modal
+          visible={quickAddDishModalVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setQuickAddDishModalVisible(false)}
+        >
+          <View style={styles.dialogOverlay}>
+            <View style={[styles.dialogContainer, Shadows.large]}>
+              <View style={styles.dialogHeader}>
+                <Text style={styles.dialogTitle}>Quick Create New Dish</Text>
+                <TouchableOpacity onPress={() => setQuickAddDishModalVisible(false)} activeOpacity={0.7}>
+                  <X size={18} color={Colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ maxHeight: 320 }}>
+                <Text style={styles.dialogInputLabel}>Dish Name (English) *</Text>
+                <TextInput 
+                  style={styles.dialogTextInput}
+                  value={quickAddDishForm.name}
+                  onChangeText={(t) => setQuickAddDishForm({ ...quickAddDishForm, name: t })}
+                  placeholder="e.g. Ghee Karam Dosa"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+
+                <Text style={styles.dialogInputLabel}>Telugu Name (Optional)</Text>
+                <TextInput 
+                  style={styles.dialogTextInput}
+                  value={quickAddDishForm.nameTelugu}
+                  onChangeText={(t) => setQuickAddDishForm({ ...quickAddDishForm, nameTelugu: t })}
+                  placeholder="e.g. నేతి కారం దోశ"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+
+                <Text style={styles.dialogInputLabel}>Category</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginVertical: 4 }}>
+                  {FOOD_CATEGORIES.filter(c => c.id !== 'all').map(cat => {
+                    const isSel = quickAddDishForm.category === cat.id;
+                    return (
+                      <TouchableOpacity
+                        key={cat.id}
+                        onPress={() => setQuickAddDishForm({ ...quickAddDishForm, category: cat.id })}
+                        style={[styles.categoryChip, isSel && styles.categoryChipActive]}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.categoryChipText, isSel && styles.categoryChipTextActive]}>
+                          {cat.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </ScrollView>
+
+              <TouchableOpacity 
+                style={[styles.dialogSubmitBtn, isCreatingMenuItem && { opacity: 0.6 }]}
+                onPress={handleQuickAddDish}
+                disabled={isCreatingMenuItem}
+                activeOpacity={0.8}
+              >
+                {isCreatingMenuItem ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.dialogSubmitText}>Save & Add to Session</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
         </Modal>
 
       </KeyboardAvoidingView>
@@ -1864,6 +2412,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.text,
   },
+  smallInputText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.text,
+  },
   borderedInput: {
     backgroundColor: Colors.background,
     borderRadius: Radii.md,
@@ -1920,6 +2474,36 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: Colors.primaryDark,
+  },
+  quickCreateDishHeaderBtn: {
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  quickCreateDishHeaderBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.primaryDark,
+  },
+  dynamicCreateBtn: {
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: Radii.md,
+    marginTop: 12,
+    ...Shadows.small,
+  },
+  dynamicCreateBtnText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '700',
   },
   selectItemsBtn: {
     flexDirection: 'row',
@@ -2031,6 +2615,27 @@ const styles = StyleSheet.create({
     color: Colors.primaryDark,
     fontSize: 13,
     fontWeight: '700',
+  },
+  fullPaidContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary + '30',
+    borderWidth: 1,
+    borderRadius: Radii.md,
+    padding: 12,
+    marginBottom: 12,
+  },
+  fullPaidTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  fullPaidSubtitle: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   paymentMethodRow: {
     flexDirection: 'row',
@@ -2164,6 +2769,64 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 13,
     color: Colors.text,
+  },
+  categoryScroll: {
+    paddingHorizontal: 18,
+    gap: 6,
+  },
+  categoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radii.pill,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  categoryChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  categoryChipTextActive: {
+    color: Colors.white,
+    fontWeight: '700',
+  },
+  quickAddSection: {
+    marginVertical: 8,
+  },
+  quickAddTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginBottom: 6,
+  },
+  quickAddScroll: {
+    gap: 6,
+  },
+  quickItemChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radii.pill,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  quickItemChipActive: {
+    backgroundColor: Colors.successLight,
+    borderColor: Colors.success,
+  },
+  quickItemChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  quickItemChipTextActive: {
+    color: Colors.success,
+    fontWeight: '700',
   },
   customerListRow: {
     flexDirection: 'row',
