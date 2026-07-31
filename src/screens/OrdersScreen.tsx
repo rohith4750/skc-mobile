@@ -21,6 +21,7 @@ import {
   AlertTriangle, 
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Package, 
   Calendar, 
   ArrowLeft,
@@ -63,6 +64,14 @@ const OrdersScreen = ({ navigation }: any) => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
+
+  const toggleMonthCollapse = useCallback((monthTitle: string) => {
+    setCollapsedMonths(prev => ({
+      ...prev,
+      [monthTitle]: !prev[monthTitle]
+    }));
+  }, []);
 
   const { 
     data: orders = [], 
@@ -264,6 +273,19 @@ const OrdersScreen = ({ navigation }: any) => {
 
     return Object.values(map);
   }, [filteredOrders]);
+
+  const sectionListItems = useMemo(() => {
+    return groupedOrdersByMonth.map(group => {
+      const isCollapsed = !!collapsedMonths[group.title];
+      return {
+        ...group,
+        data: isCollapsed ? [] : group.data,
+        rawOrders: group.data,
+        totalCount: group.data.length,
+        isCollapsed
+      };
+    });
+  }, [groupedOrdersByMonth, collapsedMonths]);
 
   const renderOrderItem = ({ item }: { item: Order }) => {
     const statusStyle = getStatusStyle(item.status);
@@ -593,29 +615,33 @@ const OrdersScreen = ({ navigation }: any) => {
         </View>
       ) : (
         <SectionList
-          sections={groupedOrdersByMonth}
+          sections={sectionListItems}
           renderItem={renderOrderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
           renderSectionHeader={({ section }: any) => {
-            const { monthName, yearName, isCurrentMonth, data } = section;
-            const totalMonthRevenue = data.reduce((acc: number, order: any) => acc + Number(order.totalAmount || 0), 0);
+            const { title, monthName, yearName, isCurrentMonth, rawOrders, totalCount, isCollapsed } = section;
+            const totalMonthRevenue = rawOrders.reduce((acc: number, order: any) => acc + Number(order.totalAmount || 0), 0);
 
             return (
-              <View style={[
-                styles.monthSummaryBar, 
-                isCurrentMonth && styles.currentMonthSummaryBar,
-                Shadows.small
-              ]}>
+              <TouchableOpacity 
+                style={[
+                  styles.monthSummaryBar, 
+                  isCurrentMonth && styles.currentMonthSummaryBar,
+                  Shadows.small
+                ]}
+                onPress={() => toggleMonthCollapse(title)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.monthHeaderLeft}>
                   <Text style={[styles.monthBarTitle, isCurrentMonth && styles.currentMonthBarTitle]}>
                     {monthName} {yearName}
                   </Text>
                   <View style={[styles.monthCountBadge, isCurrentMonth && styles.monthCountBadgeActive]}>
                     <Text style={[styles.monthCountText, isCurrentMonth && styles.monthCountTextActive]}>
-                      {data.length} {data.length === 1 ? 'order' : 'orders'}
+                      {totalCount} {totalCount === 1 ? 'order' : 'orders'}
                     </Text>
                   </View>
                 </View>
@@ -624,9 +650,13 @@ const OrdersScreen = ({ navigation }: any) => {
                   <Text style={styles.monthTotalAmount}>
                     + ₹{totalMonthRevenue.toLocaleString('en-IN')}
                   </Text>
-                  <ChevronRight size={16} color={Colors.textTertiary} />
+                  {isCollapsed ? (
+                    <ChevronRight size={18} color={Colors.textTertiary} />
+                  ) : (
+                    <ChevronDown size={18} color={Colors.primary} />
+                  )}
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           }}
           refreshControl={
