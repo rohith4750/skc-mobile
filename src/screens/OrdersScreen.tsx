@@ -600,45 +600,31 @@ const OrdersScreen = ({ navigation }: any) => {
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
           renderSectionHeader={({ section }: any) => {
-            const { monthName, yearName, shortMonth, isCurrentMonth, data } = section;
+            const { monthName, yearName, isCurrentMonth, data } = section;
+            const totalMonthRevenue = data.reduce((acc: number, order: any) => acc + Number(order.totalAmount || 0), 0);
+
             return (
               <View style={[
-                styles.monthCardContainer, 
-                isCurrentMonth && styles.currentMonthCardContainer,
+                styles.monthSummaryBar, 
+                isCurrentMonth && styles.currentMonthSummaryBar,
                 Shadows.small
               ]}>
                 <View style={styles.monthHeaderLeft}>
-                  {/* Real 3D Tear-off Calendar Icon Badge Widget */}
-                  <View style={[styles.calendarIconWidget, isCurrentMonth && styles.calendarIconWidgetActive]}>
-                    <View style={[styles.calendarTopBar, isCurrentMonth && styles.calendarTopBarActive]}>
-                      <Text style={styles.calendarTopText}>{shortMonth.toUpperCase()}</Text>
-                    </View>
-                    <View style={styles.calendarBody}>
-                      <Text style={styles.calendarBodyText}>{yearName ? yearName.slice(-2) : '26'}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.monthTitleBox}>
-                    <View style={styles.monthTitleRow}>
-                      <Text style={[styles.monthCardTitle, isCurrentMonth && styles.currentMonthCardTitle]}>
-                        {monthName} {yearName}
-                      </Text>
-                      {isCurrentMonth && (
-                        <View style={styles.activeMonthBadge}>
-                          <Text style={styles.activeMonthBadgeText}>CURRENT MONTH</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.monthCardSubtitle}>
-                      {data.length} catering {data.length === 1 ? 'event' : 'events'} listed
+                  <Text style={[styles.monthBarTitle, isCurrentMonth && styles.currentMonthBarTitle]}>
+                    {monthName} {yearName}
+                  </Text>
+                  <View style={[styles.monthCountBadge, isCurrentMonth && styles.monthCountBadgeActive]}>
+                    <Text style={[styles.monthCountText, isCurrentMonth && styles.monthCountTextActive]}>
+                      {data.length} {data.length === 1 ? 'order' : 'orders'}
                     </Text>
                   </View>
                 </View>
 
-                <View style={[styles.orderCountPill, isCurrentMonth && styles.orderCountPillActive]}>
-                  <Text style={[styles.orderCountPillText, isCurrentMonth && styles.orderCountPillTextActive]}>
-                    {data.length} {data.length === 1 ? 'Order' : 'Orders'}
+                <View style={styles.monthHeaderRight}>
+                  <Text style={styles.monthTotalAmount}>
+                    + ₹{totalMonthRevenue.toLocaleString('en-IN')}
                   </Text>
+                  <ChevronRight size={16} color={Colors.textTertiary} />
                 </View>
               </View>
             );
@@ -927,20 +913,20 @@ const styles = StyleSheet.create({
     padding: 18,
     paddingBottom: 40,
   },
-  monthCardContainer: {
+  monthSummaryBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.white,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: Radii.md,
     marginTop: 14,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  currentMonthCardContainer: {
+  currentMonthSummaryBar: {
     backgroundColor: Colors.surface,
     borderColor: Colors.primary,
     borderWidth: 1.5,
@@ -949,88 +935,45 @@ const styles = StyleSheet.create({
   monthHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  calendarIconWidget: {
-    width: 42,
-    height: 44,
-    borderRadius: Radii.sm,
-    overflow: 'hidden',
-    backgroundColor: Colors.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-  },
-  calendarIconWidgetActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.white,
-  },
-  calendarTopBar: {
-    width: '100%',
-    height: 16,
-    backgroundColor: Colors.textSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  calendarTopBarActive: {
-    backgroundColor: Colors.primary,
-  },
-  calendarTopText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: Colors.white,
-    letterSpacing: 0.5,
-  },
-  calendarBody: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  calendarBodyText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: Colors.text,
-  },
-  monthTitleBox: {},
-  monthTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
   },
-  monthCardTitle: {
+  monthBarTitle: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
     color: Colors.text,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
-  currentMonthCardTitle: {
+  currentMonthBarTitle: {
+    fontWeight: '800',
     color: Colors.primaryDark,
   },
-  activeMonthBadge: {
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: 6,
+  monthCountBadge: {
+    backgroundColor: Colors.surfaceSubtle,
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: Radii.pill,
   },
-  activeMonthBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: Colors.primaryDark,
-    letterSpacing: 0.4,
+  monthCountBadgeActive: {
+    backgroundColor: Colors.primaryLight,
   },
-  monthCardSubtitle: {
-    fontSize: 11,
+  monthCountText: {
+    fontSize: 10,
+    fontWeight: '700',
     color: Colors.textSecondary,
-    marginTop: 1,
   },
-  orderCountPill: {
-    backgroundColor: Colors.surfaceSubtle,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radii.pill,
+  monthCountTextActive: {
+    color: Colors.primaryDark,
   },
-  orderCountPillActive: {
-    backgroundColor: Colors.primary,
+  monthHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  monthTotalAmount: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.success,
+    letterSpacing: -0.3,
   },
   orderCountPillText: {
     fontSize: 11,
